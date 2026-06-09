@@ -34,11 +34,11 @@ fun CheckoutConfirm(modifier: Modifier = Modifier) {
             Image(painterResource(R.drawable.icon_finish), contentDescription = null)
             Text("訂單送出成功", fontWeight = FontWeight.Bold, fontSize = 25.sp)
             Text(
-                "你可以在\"訂單管理\"中即時追蹤這筆訂單的狀態",
+                "你可以在\"我的帳戶\"中即時追蹤這筆訂單的狀態",
                 color = Color.Gray,
                 textAlign = TextAlign.Center
             )
-            TextButton(onClick = { NavController.navigate(Screen.Home) }) { Text("追蹤這筆訂單") }
+            TextButton(onClick = { NavController.navigate(Screen.Account) }) { Text("追蹤這筆訂單") }
         }
     }
 }

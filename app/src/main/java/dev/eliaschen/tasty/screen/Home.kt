@@ -1,6 +1,7 @@
 package dev.eliaschen.tasty.screen
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,12 +22,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -44,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
@@ -70,80 +71,113 @@ fun Home(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
     val foodTypes = remember { mutableStateListOf<FoodType>() }
     val foods = remember { mutableStateListOf<Food>() }
     var selectedTypeId by remember { mutableStateOf(0) }
+    var loading by remember { mutableStateOf(true) }
+
+    suspend fun reloadFoodTypesAndFoods() {
+        val latestFoodTypes = api.getFoodTypes()
+        val resolvedTypeId = when {
+            latestFoodTypes.isEmpty() -> 0
+            latestFoodTypes.any { it.id == selectedTypeId } -> selectedTypeId
+            else -> latestFoodTypes.first().id
+        }
+        val latestFoods = if (resolvedTypeId != 0) api.getFoods(resolvedTypeId) else emptyList()
+
+        foodTypes.clear()
+        foodTypes.addAll(latestFoodTypes)
+        selectedTypeId = resolvedTypeId
+        foods.apply {
+            clear()
+            addAll(latestFoods)
+        }
+    }
+
+    suspend fun reloadSelectedFoods() {
+        if (selectedTypeId == 0) {
+            foods.clear()
+            return
+        }
+
+        loading = true
+        val newData = api.getFoods(selectedTypeId)
+        loading = false
+        foods.clear()
+        foods.addAll(newData)
+    }
 
     LaunchedEffect(Unit) {
-        foodTypes.clear()
-        foodTypes.addAll(api.getFoodTypes())
-        if (foodTypes.isNotEmpty()) {
-            selectedTypeId = foodTypes.first().id
+        loading = true
+        reloadFoodTypesAndFoods()
+        loading = false
+
+        api.observeOrderUpdates("foods") {
+            reloadFoodTypesAndFoods()
         }
     }
 
     LaunchedEffect(selectedTypeId) {
-        if (selectedTypeId != 0) {
-            foods.clear()
-            foods.addAll(api.getFoods(selectedTypeId))
+        if (!loading) {
+            reloadSelectedFoods()
         }
     }
 
-    if (foodTypes.isNotEmpty()) {
-        val selectedType = foodTypes.firstOrNull { it.id == selectedTypeId } ?: foodTypes.first()
+    val selectedType = foodTypes.firstOrNull { it.id == selectedTypeId } ?: foodTypes.firstOrNull()
 
-        LazyColumn(
-            modifier = modifier,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            contentPadding = PaddingValues(
-                bottom = WindowInsets.navigationBars.asPaddingValues()
-                    .calculateBottomPadding() + 10.dp
-            )
-        ) {
-            stickyHeader {
-                HeroHeader(backgroundImage = "$apiHostUrl/${selectedType.cover}") {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 15.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            "歡迎回來 ${api.username ?: ""}",
-                            fontSize = 25.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Row {
-                            IconButton(onClick = { NavController.navigate(Screen.Account) }) {
+    LazyColumn(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(
+            bottom = WindowInsets.navigationBars.asPaddingValues()
+                .calculateBottomPadding() + 10.dp
+        )
+    ) {
+        stickyHeader {
+            HeroHeader(backgroundImage = "$apiHostUrl/${selectedType?.cover ?: "foods.jpg"}") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 15.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "歡迎回來 ${api.username ?: ""}",
+                        fontSize = 25.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Row {
+                        IconButton(onClick = { NavController.navigate(Screen.Account) }) {
+                            Icon(
+                                Icons.Outlined.AccountCircle,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(25.dp)
+                                    .scale(-1f, 1f),
+                                tint = Color.White
+                            )
+                        }
+                        Box {
+                            val count = api.cart.sumOf { it.count }
+                            IconButton(onClick = { if (count != 0) NavController.navigate(Screen.CheckOut) }) {
                                 Icon(
-                                    Icons.Outlined.AccountCircle,
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .size(25.dp)
-                                        .scale(-1f, 1f),
-                                    tint = Color.White
+                                    painterResource(R.drawable.icon_cart),
+                                    contentDescription = null, tint = Color.White
                                 )
                             }
-                            Box {
-                                val count = api.cart.sumOf { it.count }
-                                IconButton(onClick = { if (count != 0) NavController.navigate(Screen.CheckOut) }) {
-                                    Icon(
-                                        painterResource(R.drawable.icon_cart),
-                                        contentDescription = null, tint = Color.White
-                                    )
-                                }
-                                if (count != 0) {
-                                    Badge(
-                                        modifier = Modifier
-                                            .align(Alignment.TopEnd)
-                                            .graphicsLayer {
-                                                translationY = size.height / 2
-                                            }) {
-                                        Text(count.toString())
-                                    }
+                            if (count != 0) {
+                                Badge(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .graphicsLayer {
+                                            translationY = size.height / 2
+                                        }) {
+                                    Text(count.toString())
                                 }
                             }
                         }
                     }
+                }
+                if (foodTypes.isNotEmpty()) {
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 15.dp),
                         modifier = Modifier.fillMaxWidth(),
@@ -163,25 +197,37 @@ fun Home(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
                         }
                     }
                     Text(
-                        selectedType.description,
+                        selectedType?.description.orEmpty(),
                         modifier = Modifier.padding(horizontal = 15.dp),
                         color = Color.White,
                         fontSize = 15.sp
                     )
                 }
             }
-            if (foods.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(500.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("找不到該項目的食品", color = Color.Gray)
-                    }
+        }
+        if (loading) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Orange)
                 }
             }
+        } else if (foods.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(500.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("找不到該項目的食品", color = Color.Gray)
+                }
+            }
+        } else {
             items(foods, key = { it.id }) { food ->
                 FoodCard(food = food, api = api)
             }
@@ -206,73 +252,85 @@ fun FoodCard(food: Food, price: Float? = null, api: NetworkClient = hiltViewMode
     }
 
     Card(
-        modifier = Modifier.padding(horizontal = 10.dp),
-        colors = CardDefaults.cardColors(containerColor = Orange.copy(0.2f))
+        modifier = Modifier
+            .padding(horizontal = 10.dp)
+            .height(200.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF1E5))
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
-        ) {
-            Box(
+        Box(contentAlignment = Alignment.Center) {
+            Row(
                 modifier = Modifier
-                    .width(150.dp)
-                    .fillMaxHeight()
+                    .fillMaxWidth()
             ) {
-                AsyncImage(
-                    "$apiHostUrl/${food.imageUrl}",
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()
-                )
-            }
-            Column(
-                modifier = Modifier
-                    .padding(10.dp)
-                    .fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(5.dp)
-            ) {
-                Text(
-                    food.name,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Orange
-                )
-                Text(food.remark)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                Box(
+                    modifier = Modifier
+                        .width(150.dp)
+                        .fillMaxHeight()
                 ) {
-                    Text("$ ${food.price.formattedPrice()}")
-                    if (price !== null)
-                        Text("x $quality", color = Color.Gray)
-                }
-                Spacer(Modifier.weight(1f))
-                if (price != null) {
-                    Text(
-                        "$ ${price.formattedPrice()}",
-                        color = Orange, fontStyle = FontStyle.Italic
+                    AsyncImage(
+                        "$apiHostUrl/${food.imageUrl}",
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()
                     )
                 }
-                if (price == null)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Spacer(Modifier.weight(1f))
-                        if (quality != 0) {
-                            IconButton(onClick = { adjustQuality(-1) }) {
+                Column(
+                    modifier = Modifier
+                        .padding(10.dp)
+                        .fillMaxHeight(),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Text(
+                        food.name,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Orange
+                    )
+                    Text(food.remark)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Text("$ ${food.price.formattedPrice()}")
+                        if (price !== null)
+                            Text("x $quality", color = Color.Gray)
+                    }
+                    Spacer(Modifier.weight(1f))
+                    if (price != null) {
+                        Text(
+                            "$ ${price.formattedPrice()}",
+                            color = Orange, fontStyle = FontStyle.Italic
+                        )
+                    }
+                    if (price == null)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Spacer(Modifier.weight(1f))
+                            if (quality != 0) {
+                                IconButton(onClick = { adjustQuality(-1) }) {
+                                    Icon(
+                                        painterResource(R.drawable.icon_minus),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Text(quality.toString())
+                            }
+                            IconButton(onClick = { adjustQuality(+1) }) {
                                 Icon(
-                                    painterResource(R.drawable.icon_minus),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp)
+                                    painterResource(R.drawable.icon_add),
+                                    contentDescription = null, modifier = Modifier.size(20.dp)
                                 )
                             }
-                            Text(quality.toString())
                         }
-                        IconButton(onClick = { adjustQuality(+1) }) {
-                            Icon(
-                                painterResource(R.drawable.icon_add),
-                                contentDescription = null, modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
+                }
+            }
+            if (!food.stock) {
+                Box(
+                    modifier = Modifier
+                        .pointerInput(Unit) {}
+                        .fillMaxSize()
+                        .background(Color.White.copy(0.7f))
+                )
+                Text("已完售")
             }
         }
     }

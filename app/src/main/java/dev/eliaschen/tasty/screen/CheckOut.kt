@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -27,6 +28,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,10 +61,11 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
-    var address by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf(api.address) }
     var note by remember { mutableStateOf("") }
     var showPayment by remember { mutableStateOf(false) }
     var payment by remember { mutableStateOf(Payment.Cash) }
+    var showClearCartDialog by remember { mutableStateOf(false) }
 
     var addressError by remember { mutableStateOf(false) }
 
@@ -85,6 +88,13 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
             totalPrice = calculatedTotal
         } catch (e: Exception) {
             e.printStackTrace()
+
+        }
+    }
+
+    LaunchedEffect(api.address) {
+        if (api.address != address) {
+            address = api.address
         }
     }
 
@@ -98,8 +108,10 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
         }
 
         scope.launch {
+            val finalAddress = address.trim()
+            api.updateAddress(finalAddress)
             val order = Order(
-                address = address.trim(),
+                address = finalAddress,
                 note = note.trim(),
                 payment = payment,
                 totalPrice = totalPrice,
@@ -141,7 +153,7 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
                                 color = Color.White
                             )
                         }
-                        IconButton(onClick = {}) {
+                        IconButton(onClick = { if (api.cart.isNotEmpty()) showClearCartDialog = true }) {
                             Icon(
                                 painterResource(R.drawable.clear),
                                 contentDescription = null,
@@ -158,6 +170,7 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
                                 value = address,
                                 onValueChange = {
                                     address = it
+                                    api.updateAddress(it)
                                     if (addressError && it.trim().isNotEmpty()) {
                                         addressError = false
                                     }
@@ -273,5 +286,27 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
                 Text("送出訂單")
             }
         }
+    }
+
+    if (showClearCartDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearCartDialog = false },
+            title = { Text("清空購物車") },
+            text = { Text("確定要清空目前購物車嗎？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showClearCartDialog = false
+                    api.cart.clear()
+                    NavController.navigate(Screen.Home)
+                }) {
+                    Text("確認", color = Color(0xFFD84343))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearCartDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }

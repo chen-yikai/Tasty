@@ -37,6 +37,20 @@ enum class Payment(val displayName: String) {
     CreditCard("信用卡")
 }
 
+enum class OrderStatus(val displayName: String, val colorHex: Long) {
+    @SerialName("pending")
+    Pending("待處理", 0xFF9E9E9E),
+
+    @SerialName("preparing")
+    Preparing("製作中", 0xFFFF9800),
+
+    @SerialName("delivering")
+    Delivering("配送中", 0xFF42A5F5),
+
+    @SerialName("completed")
+    Completed("已完成", 0xFF43A047),
+}
+
 @Serializable
 data class Order(
     val address: String,
@@ -44,4 +58,18 @@ data class Order(
     val payment: Payment,
     val totalPrice: Float,
     val items: List<CartItem>,
+)
+
+@Serializable
+data class PlacedOrder(
+    val id: Int? = null,
+    val address: String = "",
+    val note: String = "",
+    val payment: Payment = Payment.Cash,
+    val totalPrice: Float = 0f,
+    val items: List<CartItem> = emptyList(),
+    val status: OrderStatus? = null,
+    val email: String? = null,
+    @SerialName("user_email") val userEmail: String? = null,
+    @SerialName("created_at") val createdAt: String? = null,
 )

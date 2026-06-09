@@ -14,24 +14,37 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.android.Android
+import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
+import io.ktor.http.Url
 import io.ktor.http.contentType
+import io.ktor.http.hostWithPort
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
+import io.ktor.websocket.Frame
+import io.ktor.websocket.readText
 import jakarta.inject.Inject
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.consumeEach
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import kotlin.coroutines.coroutineContext
 
+//const val apiHostUrl = "http://10.0.2.2:3000"
 const val apiHostUrl = "https://tasty.skills.eliaschen.dev"
 
 @HiltViewModel
@@ -41,16 +54,21 @@ class NetworkClient @Inject constructor(
 
     var token by mutableStateOf<String?>(null)
     var username by mutableStateOf<String?>(null)
+    var email by mutableStateOf<String?>(null)
+    var address by mutableStateOf("")
     var cart = mutableStateListOf<CartItem>()
 
     private val sharedPreferences = context.getSharedPreferences("app", Context.MODE_PRIVATE)
 
-    val ktor = HttpClient(Android) {
+    val ktor = HttpClient(CIO) {
         install(ContentNegotiation) {
             json(Json {
                 ignoreUnknownKeys = true
                 prettyPrint = true
             })
+        }
+        install(WebSockets) {
+            pingInterval = 10000
         }
         defaultRequest {
             url(apiHostUrl)
@@ -61,6 +79,8 @@ class NetworkClient @Inject constructor(
     init {
         token = sharedPreferences.getString("token", null)
         username = sharedPreferences.getString("username", null)
+        email = sharedPreferences.getString("email", null)
+        address = sharedPreferences.getString("address", "") ?: ""
     }
 
     fun writeAuthData() {
@@ -68,7 +88,16 @@ class NetworkClient @Inject constructor(
             sharedPreferences.edit {
                 putString("token", token)
                 putString("username", username)
+                putString("email", email)
+                putString("address", address)
             }
+        }
+    }
+
+    fun updateAddress(newAddress: String) {
+        address = newAddress
+        sharedPreferences.edit {
+            putString("address", newAddress)
         }
     }
 
@@ -96,6 +125,7 @@ class NetworkClient @Inject constructor(
             val resBody: JsonObject = res.body()
             token = resBody["token"]?.jsonPrimitive?.contentOrNull
             username = resBody["username"]?.jsonPrimitive?.contentOrNull
+            this.email = resBody["email"]?.jsonPrimitive?.contentOrNull ?: email
             writeAuthData()
             NavController.navigate(Screen.Home)
             return null
@@ -132,14 +162,48 @@ class NetworkClient @Inject constructor(
         NavController.navigate(Screen.CheckOutConfirm)
     }
 
-    fun signOut() {
-        sharedPreferences.edit { clear() }
-        NavController.navigate(Screen.Auth)
+    suspend fun getPlacedOrders(): List<PlacedOrder> {
+        val allOrders =
+            runCatching {
+                ktor.get("/api/order").body<List<PlacedOrder>>()
+            }.getOrElse { emptyList() }
+        val signedInEmail = email?.trim()?.lowercase().orEmpty()
+        if (signedInEmail.isEmpty()) return allOrders
+
+        return allOrders.filter { order ->
+            val ownerEmail = (order.userEmail ?: order.email)?.trim()?.lowercase().orEmpty()
+            ownerEmail.isEmpty() || ownerEmail == signedInEmail
+        }
     }
 
-    private suspend fun showToast(message: String) {
-        withContext(Dispatchers.Main) {
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    suspend fun observeOrderUpdates(path: String, onMessage: suspend (String) -> Unit) {
+        val wsUrl = "wss://${Url(apiHostUrl).hostWithPort}/ws/$path"
+        while (coroutineContext.isActive) {
+            runCatching {
+                ktor.webSocket(urlString = wsUrl) {
+                    incoming.consumeEach { frame ->
+                        if (frame is Frame.Text) {
+                            val text = frame.readText()
+                            onMessage(text)
+                        }
+                    }
+                }
+            }.onFailure { exception ->
+                println("WebSocket error: ${exception.localizedMessage}")
+            }
+            delay(1000)
         }
+    }
+
+    fun signOut() {
+        token = null
+        username = null
+        email = null
+        address = ""
+        cart.clear()
+        sharedPreferences.edit { clear() }
+        NavController.screenStack.clear()
+        NavController.screenStack.add(Screen.Auth)
+        NavController.navigate(Screen.Auth)
     }
 }
