@@ -64,6 +64,8 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
     var showPayment by remember { mutableStateOf(false) }
     var payment by remember { mutableStateOf(Payment.Cash) }
 
+    var addressError by remember { mutableStateOf(false) }
+
     val cartItems = remember { mutableStateListOf<Food>() }
     var totalPrice by remember { mutableStateOf(0f) }
 
@@ -75,9 +77,10 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
 
         try {
             api.cart.forEach { item ->
-                val foodDetails = api.getFoodById(item.id)
-                cartItems.add(foodDetails)
-                calculatedTotal += item.count * foodDetails.price
+                api.getFoodById(item.id)?.let { foodDetails ->
+                    cartItems.add(foodDetails)
+                    calculatedTotal += item.count * foodDetails.price
+                }
             }
             totalPrice = calculatedTotal
         } catch (e: Exception) {
@@ -86,10 +89,18 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
     }
 
     fun handlePlaceOrder() {
+        if (address.trim().isEmpty()) {
+            addressError = true
+            return
+        }
+        if (api.cart.isEmpty()) {
+            return
+        }
+
         scope.launch {
             val order = Order(
-                address = address,
-                note = note,
+                address = address.trim(),
+                note = note.trim(),
                 payment = payment,
                 totalPrice = totalPrice,
                 items = api.cart
@@ -145,16 +156,25 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             OutlinedTextField(
                                 value = address,
-                                onValueChange = { address = it },
+                                onValueChange = {
+                                    address = it
+                                    if (addressError && it.trim().isNotEmpty()) {
+                                        addressError = false
+                                    }
+                                },
                                 singleLine = true,
                                 modifier = Modifier.weight(2f),
-                                placeholder = { Text("住址") },
+                                placeholder = { Text(if (addressError) "住址不能為空" else "住址") },
                                 shape = RoundedCornerShape(30f),
+                                isError = addressError,
                                 colors = OutlinedTextFieldDefaults.colors(
                                     unfocusedContainerColor = Color.White.copy(0.5f),
                                     focusedContainerColor = Color.White.copy(0.8f),
                                     unfocusedBorderColor = Orange.copy(0.5f),
                                     focusedBorderColor = Orange,
+                                    errorContainerColor = Color.White.copy(0.8f),
+                                    errorBorderColor = Color.Red,
+                                    errorPlaceholderColor = Color.Red.copy(0.6f)
                                 ),
                             )
                             ExposedDropdownMenuBox(
@@ -243,7 +263,11 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
                 onClick = {
                     handlePlaceOrder()
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Orange),
+                enabled = api.cart.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Orange,
+                    disabledContainerColor = Color.Gray.copy(0.4f)
+                ),
                 shape = RoundedCornerShape(30f)
             ) {
                 Text("送出訂單")

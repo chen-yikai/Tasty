@@ -21,7 +21,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -111,9 +113,9 @@ fun Home(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
                             color = Color.White
                         )
                         Row {
-                            IconButton(onClick = { api.signOut() }) {
+                            IconButton(onClick = { NavController.navigate(Screen.Account) }) {
                                 Icon(
-                                    Icons.Default.Logout,
+                                    Icons.Outlined.AccountCircle,
                                     contentDescription = null,
                                     modifier = Modifier
                                         .size(25.dp)
@@ -236,18 +238,25 @@ fun FoodCard(food: Food, price: Float? = null, api: NetworkClient = hiltViewMode
                     color = Orange
                 )
                 Text(food.remark)
-                Text("$ ${food.price.formattedPrice()}")
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Text("$ ${food.price.formattedPrice()}")
+                    if (price !== null)
+                        Text("x $quality", color = Color.Gray)
+                }
+                Spacer(Modifier.weight(1f))
                 if (price != null) {
                     Text(
-                        "小記 $ ${price.formattedPrice()}",
+                        "$ ${price.formattedPrice()}",
                         color = Orange, fontStyle = FontStyle.Italic
                     )
                 }
-                Spacer(Modifier.weight(1f))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Spacer(Modifier.weight(1f))
-                    if (quality != 0) {
-                        if (price == null)
+                if (price == null)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Spacer(Modifier.weight(1f))
+                        if (quality != 0) {
                             IconButton(onClick = { adjustQuality(-1) }) {
                                 Icon(
                                     painterResource(R.drawable.icon_minus),
@@ -255,16 +264,15 @@ fun FoodCard(food: Food, price: Float? = null, api: NetworkClient = hiltViewMode
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
-                        Text("${if (price != null) "x " else ""}$quality")
-                    }
-                    if (price == null)
+                            Text(quality.toString())
+                        }
                         IconButton(onClick = { adjustQuality(+1) }) {
                             Icon(
                                 painterResource(R.drawable.icon_add),
                                 contentDescription = null, modifier = Modifier.size(20.dp)
                             )
                         }
-                }
+                    }
             }
         }
     }

@@ -72,14 +72,18 @@ class NetworkClient @Inject constructor(
         }
     }
 
-    suspend fun getFoodTypes(): List<FoodType> = ktor.get("/api/types").body()
+    suspend fun getFoodTypes(): List<FoodType> =
+        runCatching { ktor.get("/api/types").body<List<FoodType>>() }.getOrElse { emptyList() }
 
     suspend fun getFoods(foodType: Int?): List<Food> =
-        ktor.get("/api/foods") { foodType?.let { header("type", foodType) } }.body()
+        runCatching {
+            ktor.get("/api/foods") { foodType?.let { header("type", foodType) } }.body<List<Food>>()
+        }.getOrElse { emptyList() }
 
-    suspend fun getFoodById(id: Int): Food = ktor.get("/api/foods/${id}").body()
+    suspend fun getFoodById(id: Int): Food? =
+        runCatching { ktor.get("/api/foods/${id}").body<Food>() }.getOrNull()
 
-    suspend fun signIn(email: String, password: String) {
+    suspend fun signIn(email: String, password: String): String? {
         val body = mapOf(
             "email" to email,
             "password" to password
@@ -94,12 +98,14 @@ class NetworkClient @Inject constructor(
             username = resBody["username"]?.jsonPrimitive?.contentOrNull
             writeAuthData()
             NavController.navigate(Screen.Home)
+            return null
         } else {
-            showToast("登入失敗")
+            val error = res.body<JsonObject>()["error"]?.jsonPrimitive?.contentOrNull
+            return if (error !== null) error else "登入失敗"
         }
     }
 
-    suspend fun signUp(username: String, email: String, password: String) {
+    suspend fun signUp(username: String, email: String, password: String): String? {
         val body = mapOf(
             "username" to username,
             "email" to email,
@@ -109,8 +115,10 @@ class NetworkClient @Inject constructor(
 
         if (res.status.isSuccess()) {
             signIn(email, password)
+            return null
         } else {
-            showToast("註冊失敗")
+            val error = res.body<JsonObject>()["error"]?.jsonPrimitive?.contentOrNull
+            return if (error !== null) error else "註冊失敗"
         }
     }
 
