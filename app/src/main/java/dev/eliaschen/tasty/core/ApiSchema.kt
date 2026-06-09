@@ -1,13 +1,8 @@
 package dev.eliaschen.tasty.core
 
-import io.ktor.client.HttpClient
-import io.ktor.client.call.body
-import io.ktor.client.request.get
-import io.ktor.client.request.header
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import retrofit2.Call
-import retrofit2.http.GET
+
 
 @Serializable
 data class Food(
@@ -47,13 +42,6 @@ data class Order(
     val address: String,
     val note: String,
     val payment: Payment,
-    val totalPrice: Int,
+    val totalPrice: Float,
     val items: List<CartItem>,
 )
-
-suspend fun HttpClient.getFoodTypes(): List<FoodType> = get("/api/types").body()
-
-suspend fun HttpClient.getFoods(foodType: Int?): List<Food> =
-    get("/api/foods") { foodType?.let { header("type", foodType) } }.body()
-
-suspend fun HttpClient.getFoodById(id: Int): Food = get("/api/foods/${id}").body()

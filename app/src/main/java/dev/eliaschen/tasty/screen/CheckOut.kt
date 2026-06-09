@@ -1,6 +1,6 @@
 package dev.eliaschen.tasty.screen
 
-import androidx.compose.animation.VectorConverter
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,11 +14,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,61 +27,84 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.util.fastRoundToInt
+import androidx.hilt.navigation.compose.hiltViewModel
 import dev.eliaschen.tasty.R
 import dev.eliaschen.tasty.component.HeroHeader
 import dev.eliaschen.tasty.core.Food
 import dev.eliaschen.tasty.core.NavController
 import dev.eliaschen.tasty.core.NetworkClient
+import dev.eliaschen.tasty.core.Order
 import dev.eliaschen.tasty.core.Payment
 import dev.eliaschen.tasty.core.Screen
 import dev.eliaschen.tasty.core.apiHostUrl
-import dev.eliaschen.tasty.core.getFoodById
 import dev.eliaschen.tasty.ui.theme.Orange
+import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun CheckOut(modifier: Modifier = Modifier) {
+fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
     var address by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var showPayment by remember { mutableStateOf(false) }
     var payment by remember { mutableStateOf(Payment.Cash) }
+
     val cartItems = remember { mutableStateListOf<Food>() }
     var totalPrice by remember { mutableStateOf(0f) }
 
-    LaunchedEffect(NetworkClient.cart.toString()) {
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(api.cart.size, api.cart.toList()) {
         cartItems.clear()
-        totalPrice = 0f
-        NetworkClient.cart.forEach {
-            cartItems.add(NetworkClient.ktorClient.getFoodById(it.id))
-            totalPrice += it.count * cartItems.last().price
+        var calculatedTotal = 0f
+
+        try {
+            api.cart.forEach { item ->
+                val foodDetails = api.getFoodById(item.id)
+                cartItems.add(foodDetails)
+                calculatedTotal += item.count * foodDetails.price
+            }
+            totalPrice = calculatedTotal
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
-    Column {
+    fun handlePlaceOrder() {
+        scope.launch {
+            val order = Order(
+                address = address,
+                note = note,
+                payment = payment,
+                totalPrice = totalPrice,
+                items = api.cart
+            )
+            api.placeOrder(order)
+        }
+    }
+
+    Column(modifier = modifier) {
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(
                 bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-            ), modifier = Modifier.weight(1f)
+            ),
+            modifier = Modifier.weight(1f)
         ) {
             stickyHeader {
                 HeroHeader(backgroundImage = "$apiHostUrl/delivery.jpg") {
@@ -103,7 +124,7 @@ fun CheckOut(modifier: Modifier = Modifier) {
                                 )
                             }
                             Text(
-                                "購物清單",
+                                "檢視訂單",
                                 fontSize = 25.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
@@ -123,63 +144,64 @@ fun CheckOut(modifier: Modifier = Modifier) {
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             OutlinedTextField(
-                                address,
-                                { address = it },
-                                modifier = Modifier
-                                    .weight(2f),
+                                value = address,
+                                onValueChange = { address = it },
+                                singleLine = true,
+                                modifier = Modifier.weight(2f),
                                 placeholder = { Text("住址") },
                                 shape = RoundedCornerShape(30f),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    unfocusedContainerColor = Color.White.copy(
-                                        0.5f
-                                    ),
+                                    unfocusedContainerColor = Color.White.copy(0.5f),
                                     focusedContainerColor = Color.White.copy(0.8f),
                                     unfocusedBorderColor = Orange.copy(0.5f),
                                     focusedBorderColor = Orange,
                                 ),
                             )
                             ExposedDropdownMenuBox(
-                                showPayment,
-                                { showPayment = !showPayment },
+                                expanded = showPayment,
+                                onExpandedChange = { showPayment = !showPayment },
                                 modifier = Modifier.weight(1f)
                             ) {
                                 OutlinedTextField(
-                                    payment.displayName,
-                                    { },
+                                    value = payment.displayName,
+                                    onValueChange = { },
                                     placeholder = { Text("支付方式") },
                                     shape = RoundedCornerShape(30f),
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        unfocusedContainerColor = Color.White.copy(
-                                            0.5f
-                                        ),
+                                        unfocusedContainerColor = Color.White.copy(0.5f),
                                         focusedContainerColor = Color.White.copy(0.8f),
                                         unfocusedBorderColor = Orange.copy(0.5f),
                                         focusedBorderColor = Orange,
                                     ),
-                                    readOnly = true, modifier = Modifier.menuAnchor(
+                                    readOnly = true,
+                                    modifier = Modifier.menuAnchor(
                                         ExposedDropdownMenuAnchorType.PrimaryEditable
                                     )
                                 )
-                                DropdownMenu(showPayment, { showPayment = false }) {
-                                    Payment.entries.forEach {
-                                        DropdownMenuItem({ Text(it.displayName) }, {
-                                            payment = it
-                                            showPayment = false
-                                        })
+                                DropdownMenu(
+                                    expanded = showPayment,
+                                    onDismissRequest = { showPayment = false }) {
+                                    Payment.entries.forEach { entry ->
+                                        DropdownMenuItem(
+                                            text = { Text(entry.displayName) },
+                                            onClick = {
+                                                payment = entry
+                                                showPayment = false
+                                            }
+                                        )
                                     }
                                 }
                             }
                         }
                         OutlinedTextField(
-                            note,
-                            { note = it },
+                            value = note,
+                            onValueChange = { note = it },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("註記") },
+                            singleLine = true,
+                            placeholder = { Text("備註") },
                             shape = RoundedCornerShape(30f),
                             colors = OutlinedTextFieldDefaults.colors(
-                                unfocusedContainerColor = Color.White.copy(
-                                    0.5f
-                                ),
+                                unfocusedContainerColor = Color.White.copy(0.5f),
                                 focusedContainerColor = Color.White.copy(0.8f),
                                 unfocusedBorderColor = Orange.copy(0.5f),
                                 focusedBorderColor = Orange,
@@ -188,11 +210,16 @@ fun CheckOut(modifier: Modifier = Modifier) {
                     }
                 }
             }
-            items(cartItems, { it.id }) { food ->
-                val subTotal = food.price * NetworkClient.cart.first { it.id == food.id }.count
+
+            items(cartItems, key = { it.id }) { food ->
+                val cartItem = api.cart.firstOrNull { it.id == food.id }
+                val count = cartItem?.count ?: 0
+                val subTotal = food.price * count
+
                 FoodCard(food, subTotal)
             }
         }
+
         Row(
             modifier = Modifier
                 .shadow(20.dp)
@@ -214,7 +241,7 @@ fun CheckOut(modifier: Modifier = Modifier) {
             }
             Button(
                 onClick = {
-
+                    handlePlaceOrder()
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Orange),
                 shape = RoundedCornerShape(30f)
