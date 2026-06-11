@@ -7,6 +7,7 @@ import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -39,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
@@ -50,6 +52,12 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,10 +65,90 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import dev.eliaschen.tasty.R
 import dev.eliaschen.tasty.core.NetworkClient
 import dev.eliaschen.tasty.ui.theme.Orange
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+
 @Composable
-fun Auth(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
+fun AuthScreen(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
+    var showSplash by remember { mutableStateOf(true) }
+    val animateBackground = remember { Animatable(-1f) }
+    val animateSplash = remember { Animatable(0f) }
+    val animateOpacity = remember { Animatable(0f) }
+    val animateAuthSlide = remember { Animatable(1f) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        launch {
+            animateOpacity.animateTo(1f)
+        }
+        launch {
+            animateSplash.animateTo(1f, tween(1500))
+        }
+        launch {
+            animateBackground.animateTo(0f, tween(1500))
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                alpha = animateOpacity.value
+            }
+    ) {
+        Image(
+            painter = painterResource(R.drawable.foods_horizontal),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize(),
+            alignment = BiasAlignment(animateBackground.value, 0f)
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Color.Black.copy(
+                        alpha = (1f - animateSplash.value).coerceIn(
+                            0.4f,
+                            0.7f
+                        )
+                    )
+                )
+        )
+
+        if (showSplash) {
+            Splash(
+                modifier = Modifier.fillMaxSize(),
+                onSplashFinished = {
+                    scope.launch {
+                        launch {
+                            animateBackground.animateTo(1f, tween(1000))
+                        }
+                        launch {
+                            animateAuthSlide.animateTo(0f, tween(1000))
+                        }
+                    }
+                    showSplash = false
+                }
+            )
+        } else {
+            AuthContent(
+                api = api,
+                slideOffset = animateAuthSlide.value
+            )
+        }
+    }
+}
+
+@Composable
+private fun AuthContent(
+    modifier: Modifier = Modifier,
+    api: NetworkClient,
+    slideOffset: Float = 0f
+) {
     val focusManager = LocalFocusManager.current
     var isSignUpMode by remember { mutableStateOf(false) }
 
@@ -72,6 +160,7 @@ fun Auth(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
     var emailError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
     var apiError by remember { mutableStateOf<String?>(null) }
+    var passwordVisible by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
 
@@ -179,43 +268,32 @@ fun Auth(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        Image(
-            painter = painterResource(R.drawable.foods),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
-        )
-
         Column(
             modifier = Modifier
+                .graphicsLayer {
+                    translationX = slideOffset * size.width * 1.5f
+                }
                 .animateContentSize()
                 .fillMaxWidth(0.9f)
                 .background(Color.White, customShape)
                 .padding(24.dp),
         ) {
-            AnimatedContent(
-                isSignUpMode,
-                transitionSpec = { slideUpTransition },
+            Crossfade(
+                targetState = isSignUpMode,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 10.dp)
-            ) { it ->
+            ) { isSignUp ->
                 Column {
                     Text(
-                        text = if (it) "成為會員" else "歡迎回來",
+                        text = if (isSignUp) "成為會員" else "歡迎回來",
                         fontSize = 26.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = if (it) "只需花幾分鐘填寫下方資料即可成為會員" else "請輸入您的帳號密碼進行登入",
+                        text = if (isSignUp) "只需花幾分鐘填寫下方資料即可成為會員" else "請輸入您的帳號密碼進行登入",
                         color = Color.Gray,
                         fontSize = 14.sp
                     )
@@ -292,7 +370,16 @@ fun Auth(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
                         },
                         label = { Text("密碼") },
                         placeholder = { Text("請輸入密碼") },
-                        visualTransformation = PasswordVisualTransformation(),
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(
+                                    imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                    contentDescription = if (passwordVisible) "隱藏密碼" else "顯示密碼",
+                                    tint = Orange
+                                )
+                            }
+                        },
                         shape = customShape,
                         colors = textFieldColors,
                         isError = passwordError != null,

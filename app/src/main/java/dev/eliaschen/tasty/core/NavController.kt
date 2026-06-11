@@ -4,13 +4,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import dagger.hilt.android.qualifiers.ApplicationContext
-import dev.eliaschen.tasty.core.Screen.Home
-import dev.eliaschen.tasty.screen.Auth
-
-enum class NavigationTransition {
-
-}
 
 enum class Screen(val order: Int) {
     Auth(1), Home(2), CheckOut(3), CheckOutConfirm(4), Account(3), Splash(
@@ -25,5 +18,12 @@ object NavController {
     fun navigate(screen: Screen) {
         currentScreen = screen
         screenStack.add(screen)
+    }
+
+    fun goBack(): Boolean {
+        if (screenStack.size <= 1) return false
+        screenStack.removeAt(screenStack.lastIndex)
+        currentScreen = screenStack.last()
+        return true
     }
 }

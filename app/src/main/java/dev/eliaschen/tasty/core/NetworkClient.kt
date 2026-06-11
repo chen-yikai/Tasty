@@ -13,12 +13,12 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.engine.android.Android
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -32,7 +32,6 @@ import io.ktor.serialization.kotlinx.json.json
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import jakarta.inject.Inject
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.consumeEach
@@ -57,6 +56,7 @@ class NetworkClient @Inject constructor(
     var email by mutableStateOf<String?>(null)
     var address by mutableStateOf("")
     var cart = mutableStateListOf<CartItem>()
+    var pendingOrder by mutableStateOf<Order?>(null)
 
     private val sharedPreferences = context.getSharedPreferences("app", Context.MODE_PRIVATE)
 
@@ -117,8 +117,12 @@ class NetworkClient @Inject constructor(
             "email" to email,
             "password" to password
         )
-        val res = ktor.post("/api/sign-in") {
-            setBody(body)
+        val res = runCatching {
+            ktor.post("/api/sign-in") {
+                setBody(body)
+            }
+        }.getOrElse {
+            return "無法連線到伺服器，請確認網路後再試"
         }
 
         if (res.status.isSuccess()) {
@@ -130,7 +134,9 @@ class NetworkClient @Inject constructor(
             NavController.navigate(Screen.Home)
             return null
         } else {
-            val error = res.body<JsonObject>()["error"]?.jsonPrimitive?.contentOrNull
+            val error = runCatching {
+                res.body<JsonObject>()["error"]?.jsonPrimitive?.contentOrNull
+            }.getOrNull()
             return if (error !== null) error else "登入失敗"
         }
     }
@@ -141,31 +147,57 @@ class NetworkClient @Inject constructor(
             "email" to email,
             "password" to password
         )
-        val res = ktor.post("/api/sign-up") { setBody(body) }
+        val res = runCatching {
+            ktor.post("/api/sign-up") { setBody(body) }
+        }.getOrElse {
+            return "無法連線到伺服器，請確認網路後再試"
+        }
 
         if (res.status.isSuccess()) {
             signIn(email, password)
             return null
         } else {
-            val error = res.body<JsonObject>()["error"]?.jsonPrimitive?.contentOrNull
+            val error = runCatching {
+                res.body<JsonObject>()["error"]?.jsonPrimitive?.contentOrNull
+            }.getOrNull()
             return if (error !== null) error else "註冊失敗"
         }
     }
 
     suspend fun placeOrder(order: Order) {
-        val res = ktor.post("/api/order") {
-            header("Authorization", "Bearer $token")
-            setBody(order)
+        val res = runCatching {
+            ktor.post("/api/order") {
+                header("Authorization", "Bearer $token")
+                setBody(order)
+            }
+        }.getOrElse {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "無法送出訂單，請確認網路後再試", Toast.LENGTH_SHORT).show()
+            }
+            return
         }
-        Log.i("PlaceOrder", res.body())
+
+        if (!res.status.isSuccess()) {
+            val error = runCatching {
+                res.body<JsonObject>()["error"]?.jsonPrimitive?.contentOrNull
+            }.getOrNull() ?: "送出訂單失敗"
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+
+        Log.i("PlaceOrder", "order submitted")
         cart.clear()
-        NavController.navigate(Screen.CheckOutConfirm)
+        NavController.navigate(Screen.Account)
     }
 
     suspend fun getPlacedOrders(): List<PlacedOrder> {
         val allOrders =
             runCatching {
-                ktor.get("/api/order").body<List<PlacedOrder>>()
+                ktor.get("/api/order") {
+                    token?.let { header("Authorization", "Bearer $it") }
+                }.body<List<PlacedOrder>>()
             }.getOrElse { emptyList() }
         val signedInEmail = email?.trim()?.lowercase().orEmpty()
         if (signedInEmail.isEmpty()) return allOrders
@@ -174,6 +206,28 @@ class NetworkClient @Inject constructor(
             val ownerEmail = (order.userEmail ?: order.email)?.trim()?.lowercase().orEmpty()
             ownerEmail.isEmpty() || ownerEmail == signedInEmail
         }
+    }
+
+    suspend fun deletePlacedOrder(orderId: Int): Boolean {
+        val res = runCatching {
+            ktor.delete("/api/order/$orderId") {
+                token?.let { header("Authorization", "Bearer $it") }
+            }
+        }.getOrElse {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "無法刪除訂單，請確認網路後再試", Toast.LENGTH_SHORT).show()
+            }
+            return false
+        }
+
+        if (!res.status.isSuccess()) {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "刪除訂單失敗", Toast.LENGTH_SHORT).show()
+            }
+            return false
+        }
+
+        return true
     }
 
     suspend fun observeOrderUpdates(path: String, onMessage: suspend (String) -> Unit) {

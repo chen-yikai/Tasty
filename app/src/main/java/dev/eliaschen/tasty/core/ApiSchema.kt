@@ -62,7 +62,7 @@ data class Order(
 
 @Serializable
 data class PlacedOrder(
-    val id: Int? = null,
+    val id: Int,
     val address: String = "",
     val note: String = "",
     val payment: Payment = Payment.Cash,

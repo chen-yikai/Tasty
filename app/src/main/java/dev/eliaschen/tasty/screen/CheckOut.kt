@@ -107,18 +107,16 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
             return
         }
 
-        scope.launch {
-            val finalAddress = address.trim()
-            api.updateAddress(finalAddress)
-            val order = Order(
-                address = finalAddress,
-                note = note.trim(),
-                payment = payment,
-                totalPrice = totalPrice,
-                items = api.cart
-            )
-            api.placeOrder(order)
-        }
+        val finalAddress = address.trim()
+        api.updateAddress(finalAddress)
+        api.pendingOrder = Order(
+            address = finalAddress,
+            note = note.trim(),
+            payment = payment,
+            totalPrice = totalPrice,
+            items = api.cart.toList()
+        )
+        NavController.navigate(Screen.CheckOutConfirm)
     }
 
     Column(modifier = modifier) {

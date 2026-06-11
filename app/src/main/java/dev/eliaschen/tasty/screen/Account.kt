@@ -1,6 +1,7 @@
 package dev.eliaschen.tasty.screen
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,7 +26,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.AlertDialog
@@ -40,8 +41,12 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxDefaults
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,6 +55,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -81,12 +87,14 @@ import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Date
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
     val placedOrders = remember { mutableStateListOf<PlacedOrder>() }
     val foodNamesById = remember { mutableStateMapOf<Int, String>() }
+    val scope = rememberCoroutineScope()
     var loading by remember { mutableStateOf(true) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showAddressSheet by remember { mutableStateOf(false) }
@@ -105,7 +113,7 @@ fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel())
             }
 
         placedOrders.clear()
-        placedOrders.addAll(orders)
+        placedOrders.addAll(orders.sortedByDescending { it.createdAt })
         foodNamesById.clear()
         foodNamesById.putAll(latestFoodNamesById)
     }
@@ -114,8 +122,7 @@ fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel())
         loading = true
         reloadAccountOrders()
         loading = false
-
-        api.observeOrderUpdates("orders") {
+        api.observeOrderUpdates("orders") { _ ->
             reloadAccountOrders()
         }
     }
@@ -255,8 +262,27 @@ fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel())
                 }
             }
         } else {
-            items(placedOrders, key = { it.id ?: it.hashCode() }) { order ->
-                OrderHistoryCard(order = order, foodNameById = foodNamesById)
+            items(placedOrders, key = { it.id }) { order ->
+                SwipeToDeleteOrderHistoryCard(
+                    order = order,
+                    foodNameById = foodNamesById,
+                    modifier = Modifier.animateItem(),
+                    onDelete = { deletingOrder ->
+                        deletingOrder.id.let { deletingOrderId ->
+                            scope.launch {
+                                val removeIndex =
+                                    placedOrders.indexOfFirst { it.id == deletingOrderId }
+                                if (removeIndex == -1) return@launch
+                                val removedOrder = placedOrders.removeAt(removeIndex)
+                                val deleted = api.deletePlacedOrder(deletingOrderId)
+                                if (!deleted) {
+                                    val restoreIndex = removeIndex.coerceAtMost(placedOrders.size)
+                                    placedOrders.add(restoreIndex, removedOrder)
+                                }
+                            }
+                        }
+                    }
+                )
             }
         }
     }
@@ -337,6 +363,55 @@ fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel())
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeToDeleteOrderHistoryCard(
+    order: PlacedOrder,
+    foodNameById: Map<Int, String>,
+    onDelete: (PlacedOrder) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val dismissState = rememberSwipeToDismissBoxState(SwipeToDismissBoxValue.Settled) {
+        it * 0.8f
+    }
+
+    SwipeToDismissBox(
+        state = dismissState,
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = true,
+        modifier = modifier.animateContentSize(),
+        onDismiss = {
+            if (it == SwipeToDismissBoxValue.EndToStart) {
+                onDelete(order)
+            }
+        },
+        backgroundContent = {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 10.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Color(0xFFD84343))
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Delete,
+                        contentDescription = null,
+                        tint = Color.White
+                    )
+                }
+            }
+        }
+    ) {
+        OrderHistoryCard(order = order, foodNameById = foodNameById)
+    }
+}
+
 @Composable
 private fun OrderHistoryCard(order: PlacedOrder, foodNameById: Map<Int, String>) {
     val status = order.status ?: OrderStatus.Pending
@@ -385,7 +460,8 @@ private fun OrderHistoryCard(order: PlacedOrder, foodNameById: Map<Int, String>)
                         } else {
                             Modifier
                         }
-                    ).padding(15.dp),
+                    )
+                    .padding(15.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -435,7 +511,12 @@ private fun OrderHistoryCard(order: PlacedOrder, foodNameById: Map<Int, String>)
             }
 
             AnimatedVisibility(detailsExpanded) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(horizontal = 15.dp).padding(bottom = 15.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .padding(horizontal = 15.dp)
+                        .padding(bottom = 15.dp)
+                ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
