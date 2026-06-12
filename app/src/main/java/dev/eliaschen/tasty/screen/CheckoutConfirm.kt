@@ -157,7 +157,7 @@ fun CheckoutConfirm(modifier: Modifier = Modifier, api: NetworkClient = hiltView
                 AnimatedVisibility(
                     visible = showContent && pendingOrder != null,
                     enter = fadeIn(tween(1000, delayMillis = 1000)) +
-                            slideInVertically(tween(1000, delayMillis = 1000)) { it / 2 }
+                            slideInVertically(tween(1000, delayMillis = 1000)) { -it }
                 ) {
                     Column(
                         modifier = Modifier
@@ -208,7 +208,7 @@ fun CheckoutConfirm(modifier: Modifier = Modifier, api: NetworkClient = hiltView
                             durationMillis = 500,
                             delayMillis = 2000 + (index * 150)
                         )
-                    ) { it / 2 }
+                    ) { -it / 2 }
                 ) {
                     Row(
                         modifier = Modifier

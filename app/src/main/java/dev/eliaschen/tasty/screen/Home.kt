@@ -319,32 +319,36 @@ fun FoodCard(
                             )
                     }
                     Spacer(Modifier.weight(1f))
-                    if (price != null) {
-                        Text(
-                            "$ ${price.formattedPrice()}",
-                            color = Orange, fontStyle = FontStyle.Italic
-                        )
-                    }
-                    if (enableQuantityAdjust)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Spacer(Modifier.weight(1f))
-                            if (quality != 0) {
-                                IconButton(onClick = { adjustQuality(-1) }) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (price != null) {
+                            Text(
+                                "$ ${price.formattedPrice()}",
+                                color = Orange, fontStyle = FontStyle.Italic
+                            )
+                        }
+                        Spacer(Modifier.weight(1f))
+                        if (enableQuantityAdjust) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Spacer(Modifier.weight(1f))
+                                if (quality != 0) {
+                                    IconButton(onClick = { adjustQuality(-1) }) {
+                                        Icon(
+                                            painterResource(R.drawable.icon_minus),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    Text(quality.toString())
+                                }
+                                IconButton(onClick = { adjustQuality(+1) }) {
                                     Icon(
-                                        painterResource(R.drawable.icon_minus),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(20.dp)
+                                        painterResource(R.drawable.icon_add),
+                                        contentDescription = null, modifier = Modifier.size(20.dp)
                                     )
                                 }
-                                Text(quality.toString())
-                            }
-                            IconButton(onClick = { adjustQuality(+1) }) {
-                                Icon(
-                                    painterResource(R.drawable.icon_add),
-                                    contentDescription = null, modifier = Modifier.size(20.dp)
-                                )
                             }
                         }
+                    }
                 }
             }
             if (!food.stock) {

@@ -1,7 +1,9 @@
 package dev.eliaschen.tasty.screen
 
+import android.view.MotionEvent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
@@ -10,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -50,6 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -62,6 +66,7 @@ import dev.eliaschen.tasty.core.NavController
 import dev.eliaschen.tasty.core.NetworkClient
 import dev.eliaschen.tasty.core.Screen
 import dev.eliaschen.tasty.ui.theme.Orange
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -70,6 +75,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import javax.annotation.Untainted
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -90,7 +96,7 @@ fun CartAgentBottomSheet(
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
+            listState.animateScrollToItem(messages.lastIndex)
         }
     }
 
@@ -192,9 +198,10 @@ fun CartAgentBottomSheet(
                     )
                 } else {
                     LazyColumn(
-                        state = listState, // 3. Attach the list state here
+                        state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(15.dp),
+                        contentPadding = PaddingValues(bottom = 20.dp)
                     ) {
                         itemsIndexed(
                             items = messages,
@@ -310,6 +317,9 @@ private fun AgentMessageBubble(
     onAddSuggestionToCart: (AgentFoodSuggestion, Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var show by remember { mutableStateOf(false) }
+    val opacity = animateFloatAsState(if (show) 1f else 0f)
+    LaunchedEffect(Unit) { show = true }
     val isUser = message.author == "user"
     val isSuggestion = !isUser && message.type == "food_items"
     val bubbleColor =
@@ -325,160 +335,161 @@ private fun AgentMessageBubble(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
     ) {
-        AnimatedVisibility(
-            visible = true,
-            enter = fadeIn(animationSpec = tween(300)) + slideInVertically(
-                animationSpec = tween(300),
-                initialOffsetY = { it / 3 }
-            )
+        Column(
+            modifier = Modifier
+                .graphicsLayer(alpha = opacity.value)
+                .then(bubbleWidthModifier)
+                .clip(RoundedCornerShape(14.dp))
+                .background(bubbleColor)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Column(
-                modifier = Modifier
-                    .then(bubbleWidthModifier)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(bubbleColor)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                if (isSuggestion) {
-                    Text(
-                        text = "餐點推薦",
-                        color = if (isUser) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp,
-                    )
-                    if (suggestions.isEmpty()) {
-                        Text(
-                            text = message.content,
-                            color = textColor,
-                            fontSize = 14.sp,
-                        )
-                    } else {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            itemsIndexed(
-                                suggestions,
-                                key = { index, suggestion -> "${suggestion.id}-$index" },
-                            ) { index, suggestion ->
-                                var selectedQuantity by remember(
-                                    message.content,
-                                    suggestion.id,
-                                    suggestion.quantity,
-                                    index,
-                                ) {
-                                    mutableIntStateOf(suggestion.quantity.coerceIn(1, 5))
-                                }
-                                var isAddedNotice by remember(
-                                    message.content,
-                                    suggestion.id,
-                                    index,
-                                ) {
-                                    mutableStateOf(false)
-                                }
-                                Column(
-                                    modifier = Modifier
-                                        .widthIn(min = 190.dp, max = 220.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(MaterialTheme.colorScheme.surface)
-                                        .padding(10.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                                ) {
-                                    Text(
-                                        text = suggestion.name,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 14.sp,
-                                    )
-                                    if (suggestion.reason.isNotBlank()) {
-                                        Text(
-                                            text = suggestion.reason,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            fontSize = 12.sp,
-                                        )
-                                    }
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    ) {
-                                        Text(
-                                            "數量",
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            fontSize = 12.sp
-                                        )
-                                        Spacer(Modifier.weight(1f))
-                                        IconButton(
-                                            onClick = {
-                                                selectedQuantity =
-                                                    (selectedQuantity - 1).coerceAtLeast(1)
-                                                isAddedNotice = false
-                                            },
-                                            enabled = selectedQuantity > 1,
-                                        ) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.icon_minus),
-                                                contentDescription = "減少建議數量",
-                                                modifier = Modifier.size(18.dp),
-                                                tint = if (selectedQuantity > 1) {
-                                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                                } else {
-                                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                                                },
-                                            )
-                                        }
-                                        Text(
-                                            text = selectedQuantity.toString(),
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            fontWeight = FontWeight.Bold,
-                                        )
-                                        IconButton(
-                                            onClick = {
-                                                selectedQuantity =
-                                                    (selectedQuantity + 1).coerceAtMost(5)
-                                                isAddedNotice = false
-                                            },
-                                            enabled = selectedQuantity < 5,
-                                        ) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.icon_add),
-                                                contentDescription = "增加建議數量",
-                                                modifier = Modifier.size(18.dp),
-                                                tint = if (selectedQuantity < 5) {
-                                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                                } else {
-                                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                                                },
-                                            )
-                                        }
-                                    }
-                                    Button(
-                                        onClick = {
-                                            onAddSuggestionToCart(suggestion, selectedQuantity)
-                                            isAddedNotice = true
-                                        },
-                                        enabled = !isAddedNotice,
-                                        shape = RoundedCornerShape(10.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (isAddedNotice) Color(0xFF43A047) else Orange,
-                                            disabledContainerColor = if (isAddedNotice) Color(
-                                                0xFF43A047
-                                            ) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
-                                        ),
-                                        modifier = Modifier.fillMaxWidth(),
-                                    ) {
-                                        Text(
-                                            if (isAddedNotice) "已加入購物車" else "加入購物車",
-                                            color = Color.White
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else {
+            if (isSuggestion) {
+                Text(
+                    text = "餐點推薦",
+                    color = if (isUser) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                )
+                if (suggestions.isEmpty()) {
                     Text(
                         text = message.content,
                         color = textColor,
                         fontSize = 14.sp,
                     )
+                } else {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        itemsIndexed(
+                            suggestions,
+                            key = { index, suggestion -> "${suggestion.id}-$index" },
+                        ) { index, suggestion ->
+                            var selectedQuantity by remember(
+                                message.content,
+                                suggestion.id,
+                                suggestion.quantity,
+                                index,
+                            ) {
+                                mutableIntStateOf(suggestion.quantity.coerceIn(1, 5))
+                            }
+                            var isAddedNotice by remember(
+                                message.content,
+                                suggestion.id,
+                                index,
+                            ) {
+                                mutableStateOf(false)
+                            }
+
+                            Column(
+                                modifier = Modifier
+                                    .animateItem()
+                                    .widthIn(min = 190.dp, max = 220.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Text(
+                                    text = suggestion.name,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 14.sp,
+                                )
+                                if (suggestion.reason.isNotBlank()) {
+                                    Text(
+                                        text = suggestion.reason,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Text(
+                                        "數量",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 12.sp
+                                    )
+                                    Spacer(Modifier.weight(1f))
+                                    IconButton(
+                                        onClick = {
+                                            selectedQuantity =
+                                                (selectedQuantity - 1).coerceAtLeast(1)
+                                            isAddedNotice = false
+                                        },
+                                        enabled = selectedQuantity > 1,
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.icon_minus),
+                                            contentDescription = "減少建議數量",
+                                            modifier = Modifier.size(18.dp),
+                                            tint = if (selectedQuantity > 1) {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                    alpha = 0.3f
+                                                )
+                                            },
+                                        )
+                                    }
+                                    Text(
+                                        text = selectedQuantity.toString(),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                    IconButton(
+                                        onClick = {
+                                            selectedQuantity =
+                                                (selectedQuantity + 1).coerceAtMost(5)
+                                            isAddedNotice = false
+                                        },
+                                        enabled = selectedQuantity < 5,
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.icon_add),
+                                            contentDescription = "增加建議數量",
+                                            modifier = Modifier.size(18.dp),
+                                            tint = if (selectedQuantity < 5) {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                    alpha = 0.3f
+                                                )
+                                            },
+                                        )
+                                    }
+                                }
+                                Button(
+                                    onClick = {
+                                        onAddSuggestionToCart(suggestion, selectedQuantity)
+                                        isAddedNotice = true
+                                    },
+                                    enabled = !isAddedNotice,
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isAddedNotice) Color(0xFF43A047) else Orange,
+                                        disabledContainerColor = if (isAddedNotice) Color(
+                                            0xFF43A047
+                                        ) else MaterialTheme.colorScheme.onSurface.copy(
+                                            alpha = 0.2f
+                                        ),
+                                    ),
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(
+                                        if (isAddedNotice) "已加入購物車" else "加入購物車",
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
+            } else {
+                Text(
+                    text = message.content,
+                    color = textColor,
+                    fontSize = 14.sp,
+                )
             }
         }
     }
