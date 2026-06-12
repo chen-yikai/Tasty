@@ -23,6 +23,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -32,7 +33,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.hilt.navigation.compose.hiltViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import dev.eliaschen.tasty.component.OfflineOverlay
@@ -75,7 +75,8 @@ class MainActivity : ComponentActivity() {
                 val networkObserver = remember { NetworkObserver(this) }
                 val isOnline by networkObserver.isOnline.collectAsState(initial = true)
                 val currentScreen = NavController.currentScreen
-                val canOpenAgentSheet = currentScreen != Screen.Auth && currentScreen != Screen.CheckOutConfirm
+                val canOpenAgentSheet =
+                    currentScreen != Screen.Auth && currentScreen != Screen.CheckOutConfirm
 
                 LaunchedEffect(Unit) {
                     sharedPreferences.getString("token", null)?.let {
@@ -127,28 +128,30 @@ class MainActivity : ComponentActivity() {
                     if (!isOnline) {
                         OfflineOverlay()
                     } else {
-                        AnimatedContent(
-                            NavController.currentScreen,
-                            transitionSpec = {
-                                if (targetState.order == 0 || targetState.order == 1) {
-                                    return@AnimatedContent fadeIn() togetherWith fadeOut()
-                                }
-                                if (targetState.order < initialState.order) {
-                                    fadeIn(tween(500)) togetherWith slideOutHorizontally { it } + fadeOut()
-                                } else {
-                                    slideInHorizontally { it } + fadeIn() togetherWith ExitTransition.KeepUntilTransitionsFinished
-                                }
-                            },
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            Surface(color = Color.White) {
-                                when (it) {
-                                    Screen.Home -> Home()
-                                    Screen.CheckOut -> CheckOut()
-                                    Screen.Auth -> AuthScreen()
-                                    Screen.CheckOutConfirm -> CheckoutConfirm()
-                                    Screen.Account -> Account()
-                                    else -> {}
+                        Surface(color = MaterialTheme.colorScheme.background) {
+                            AnimatedContent(
+                                NavController.currentScreen,
+                                transitionSpec = {
+                                    if (targetState.order == 0 || targetState.order == 1) {
+                                        return@AnimatedContent fadeIn() togetherWith fadeOut()
+                                    }
+                                    if (targetState.order < initialState.order) {
+                                        fadeIn(tween(500)) togetherWith slideOutHorizontally { it } + fadeOut()
+                                    } else {
+                                        slideInHorizontally { it } + fadeIn() togetherWith ExitTransition.KeepUntilTransitionsFinished
+                                    }
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                Surface(color = MaterialTheme.colorScheme.background) {
+                                    when (it) {
+                                        Screen.Home -> Home()
+                                        Screen.CheckOut -> CheckOut()
+                                        Screen.Auth -> AuthScreen()
+                                        Screen.CheckOutConfirm -> CheckoutConfirm()
+                                        Screen.Account -> Account()
+                                        else -> {}
+                                    }
                                 }
                             }
                         }

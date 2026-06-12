@@ -22,6 +22,7 @@ import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.Url
@@ -132,6 +133,7 @@ class NetworkClient @Inject constructor(
             token = resBody["token"]?.jsonPrimitive?.contentOrNull
             username = resBody["username"]?.jsonPrimitive?.contentOrNull
             this.email = resBody["email"]?.jsonPrimitive?.contentOrNull ?: email
+            address = resBody["address"]?.jsonPrimitive?.contentOrNull ?: address
             writeAuthData()
             NavController.navigate(Screen.Home)
             return null
@@ -167,6 +169,7 @@ class NetworkClient @Inject constructor(
     }
 
     suspend fun placeOrder(order: Order) {
+        saveAddressToApi(order.address)
         val res = runCatching {
             ktor.post("/api/order") {
                 header("Authorization", "Bearer $token")
@@ -192,6 +195,34 @@ class NetworkClient @Inject constructor(
         Log.i("PlaceOrder", "order submitted")
         cart.clear()
         NavController.navigate(Screen.Account)
+    }
+
+    suspend fun saveAddressToApi(newAddress: String): Boolean {
+        val normalizedAddress = newAddress.trim()
+        updateAddress(normalizedAddress)
+
+        val authToken = token
+        if (normalizedAddress.isEmpty() || authToken.isNullOrBlank()) return false
+
+        val endpoints = listOf("/api/user/address", "/api/account/address")
+        endpoints.forEach { path ->
+            val res = runCatching {
+                ktor.put(path) {
+                    header("Authorization", "Bearer $authToken")
+                    setBody(UpdateAddressRequest(address = normalizedAddress))
+                }
+            }.getOrNull() ?: return@forEach
+
+            if (res.status.isSuccess()) {
+                return true
+            }
+
+            if (res.status.value != 404 && res.status.value != 405) {
+                return false
+            }
+        }
+
+        return false
     }
 
     suspend fun chatWithAgent(messages: List<AgentMessage>): List<AgentMessage>? {

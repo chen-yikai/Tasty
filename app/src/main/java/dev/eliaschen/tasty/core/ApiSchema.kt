@@ -85,3 +85,8 @@ data class AgentMessage(
 data class AgentChatRequest(
     val messages: List<AgentMessage>,
 )
+
+@Serializable
+data class UpdateAddressRequest(
+    val address: String,
+)

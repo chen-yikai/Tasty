@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -129,15 +130,25 @@ fun CheckoutConfirm(modifier: Modifier = Modifier, api: NetworkClient = hiltView
             item {
                 AnimatedVisibility(
                     visible = showContent,
-                    enter = fadeIn(tween(500, delayMillis = 0)) +
-                            slideInVertically(tween(500, delayMillis = 0)) { -it }
+                    enter = fadeIn(tween(1000)) +
+                            slideInVertically(tween(1000)) { -it / 2 }
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(text = "再次確認您的訂單", fontSize = 25.sp, fontWeight = FontWeight.Bold, color = Orange)
-                        Text(text = "訂單將在倒數結束後送出", color = Color.Gray)
+                        Text(
+                            text = "再次確認您的訂單",
+                            fontSize = 25.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Orange
+                        )
+                        Text(
+                            text = "訂單將在倒數結束後送出",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -145,23 +156,40 @@ fun CheckoutConfirm(modifier: Modifier = Modifier, api: NetworkClient = hiltView
             item {
                 AnimatedVisibility(
                     visible = showContent && pendingOrder != null,
-                    enter = fadeIn(tween(500, delayMillis = 400)) +
-                            slideInVertically(tween(500, delayMillis = 400)) { it / 2 }
+                    enter = fadeIn(tween(1000, delayMillis = 1000)) +
+                            slideInVertically(tween(1000, delayMillis = 1000)) { it / 2 }
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 6.dp)
+                            .padding(horizontal = 20.dp, vertical = 5.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFFFF4EB))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
                             .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
-                        Text(text = "配送資訊", color = Color(0xFF795548), fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                        Text(text = "地址：${pendingOrder?.address?.ifBlank { "-" } ?: "-"}", color = Color(0xFF5D4037), fontSize = 13.sp)
-                        Text(text = "支付方式：${pendingOrder?.payment?.displayName ?: "-"}", color = Color(0xFF5D4037), fontSize = 13.sp)
+                        Text(
+                            text = "配送資訊",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "地址：${pendingOrder?.address?.ifBlank { "-" } ?: "-"}",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            text = "支付方式：${pendingOrder?.payment?.displayName ?: "-"}",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 13.sp
+                        )
                         if (pendingOrder?.note?.isNotBlank() == true) {
-                            Text(text = "備註：${pendingOrder.note}", color = Color(0xFF6D4C41), fontSize = 13.sp)
+                            Text(
+                                text = "備註：${pendingOrder.note}",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 13.sp
+                            )
                         }
                     }
                 }
@@ -173,12 +201,12 @@ fun CheckoutConfirm(modifier: Modifier = Modifier, api: NetworkClient = hiltView
                     enter = fadeIn(
                         animationSpec = tween(
                             durationMillis = 500,
-                            delayMillis = 800 + (index * 150)
+                            delayMillis = 2000 + (index * 150)
                         )
                     ) + slideInVertically(
                         animationSpec = tween(
                             durationMillis = 500,
-                            delayMillis = 800 + (index * 150)
+                            delayMillis = 2000 + (index * 150)
                         )
                     ) { it / 2 }
                 ) {
@@ -187,19 +215,28 @@ fun CheckoutConfirm(modifier: Modifier = Modifier, api: NetworkClient = hiltView
                             .fillMaxWidth()
                             .padding(horizontal = 20.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0xFFF7F7F7))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = item.name, color = Color(0xFF455A64), fontSize = 14.sp)
+                        Text(
+                            text = item.name,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 14.sp
+                        )
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(100.dp))
                                 .background(Orange.copy(alpha = 0.15f))
                                 .padding(horizontal = 10.dp, vertical = 3.dp)
                         ) {
-                            Text(text = "x${item.count}", color = Orange, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text(
+                                text = "x${item.count}",
+                                color = Orange,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
                         }
                     }
                 }
@@ -209,7 +246,7 @@ fun CheckoutConfirm(modifier: Modifier = Modifier, api: NetworkClient = hiltView
         Column(
             modifier = Modifier
                 .shadow(20.dp)
-                .background(Color.White)
+                .background(MaterialTheme.colorScheme.surface)
                 .padding(20.dp)
                 .fillMaxWidth()
                 .navigationBarsPadding(),
@@ -220,10 +257,18 @@ fun CheckoutConfirm(modifier: Modifier = Modifier, api: NetworkClient = hiltView
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "正在確認訂單...", fontSize = 14.sp, color = Color.Gray)
+                Text(
+                    text = "正在確認訂單...",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = { cancelAndGoBack() }) {
-                        Text("取消", color = Color.Gray, fontWeight = FontWeight.Medium)
+                        Text(
+                            "取消",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                     TextButton(onClick = { skipCountdown() }) {
                         Text("直接送出", color = Orange, fontWeight = FontWeight.Bold)
@@ -238,7 +283,7 @@ fun CheckoutConfirm(modifier: Modifier = Modifier, api: NetworkClient = hiltView
                     .height(8.dp)
                     .clip(RoundedCornerShape(4.dp)),
                 color = Orange,
-                trackColor = Color.Gray.copy(alpha = 0.2f)
+                trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
             )
         }
     }

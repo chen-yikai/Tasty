@@ -167,10 +167,10 @@ private fun AuthContent(
     val textFieldColors = OutlinedTextFieldDefaults.colors(
         unfocusedBorderColor = Orange.copy(alpha = 0.5f),
         focusedBorderColor = Orange,
-        unfocusedLabelColor = Color.Gray,
+        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
         focusedLabelColor = Orange,
-        errorBorderColor = Color.Red,
-        errorLabelColor = Color.Red
+        errorBorderColor = MaterialTheme.colorScheme.error,
+        errorLabelColor = MaterialTheme.colorScheme.error
     )
 
     val shakeOffset = remember { Animatable(0f) }
@@ -275,7 +275,7 @@ private fun AuthContent(
                 }
                 .animateContentSize()
                 .fillMaxWidth(0.9f)
-                .background(Color.White, customShape)
+                .background(MaterialTheme.colorScheme.surface, customShape)
                 .padding(24.dp),
         ) {
             Crossfade(
@@ -289,12 +289,12 @@ private fun AuthContent(
                         text = if (isSignUp) "成為會員" else "歡迎回來",
                         fontSize = 26.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Black
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = if (isSignUp) "只需花幾分鐘填寫下方資料即可成為會員" else "請輸入您的帳號密碼進行登入",
-                        color = Color.Gray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 14.sp
                     )
                 }
@@ -325,7 +325,7 @@ private fun AuthContent(
                     usernameError?.let { errorMsg ->
                         Text(
                             text = errorMsg,
-                            color = Color.Red,
+                            color = MaterialTheme.colorScheme.error,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(start = 12.dp, top = 4.dp)
                         )
@@ -353,7 +353,7 @@ private fun AuthContent(
                     emailError?.let { errorMsg ->
                         Text(
                             text = errorMsg,
-                            color = Color.Red,
+                            color = MaterialTheme.colorScheme.error,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(start = 12.dp, top = 4.dp)
                         )
@@ -389,7 +389,7 @@ private fun AuthContent(
                     passwordError?.let { errorMsg ->
                         Text(
                             text = errorMsg,
-                            color = Color.Red,
+                            color = MaterialTheme.colorScheme.error,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(start = 12.dp, top = 4.dp)
                         )
@@ -441,7 +441,7 @@ private fun AuthContent(
                     ) {
                         Text(
                             text = if (it) "已經有帳號了？ " else "還沒有帳號嗎？ ",
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 14.sp
                         )
                         Text(

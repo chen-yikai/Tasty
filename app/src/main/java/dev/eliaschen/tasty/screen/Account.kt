@@ -38,6 +38,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -257,7 +258,7 @@ fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel())
                     Text(
                         "目前沒有訂單",
                         modifier = Modifier.padding(horizontal = 15.dp),
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -297,7 +298,7 @@ fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel())
                     showLogoutDialog = false
                     api.signOut()
                 }) {
-                    Text("確認", color = Color(0xFFD84343))
+                    Text("確認", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
@@ -311,7 +312,7 @@ fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel())
     if (showAddressSheet) {
         ModalBottomSheet(
             onDismissRequest = { showAddressSheet = false },
-            containerColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -326,9 +327,9 @@ fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel())
                     singleLine = true,
                     shape = RoundedCornerShape(30f),
                     colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedContainerColor = Color(0xFFF8F8F8),
-                        focusedContainerColor = Color.White,
-                        unfocusedBorderColor = Orange.copy(0.5f),
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
                         focusedBorderColor = Orange
                     )
                 )
@@ -349,8 +350,10 @@ fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel())
                     }
                     Button(
                         onClick = {
-                            api.updateAddress(editableAddress.trim())
-                            showAddressSheet = false
+                            scope.launch {
+                                api.saveAddressToApi(editableAddress.trim())
+                                showAddressSheet = false
+                            }
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = Orange)
@@ -391,7 +394,7 @@ private fun SwipeToDeleteOrderHistoryCard(
                     .fillMaxSize()
                     .padding(horizontal = 10.dp)
                     .clip(RoundedCornerShape(22.dp))
-                    .background(Color(0xFFD84343))
+                    .background(MaterialTheme.colorScheme.error)
                     .padding(horizontal = 16.dp),
                 contentAlignment = Alignment.CenterEnd
             ) {
@@ -402,7 +405,7 @@ private fun SwipeToDeleteOrderHistoryCard(
                     Icon(
                         imageVector = Icons.Rounded.Delete,
                         contentDescription = null,
-                        tint = Color.White
+                        tint = MaterialTheme.colorScheme.onError
                     )
                 }
             }
@@ -442,7 +445,7 @@ private fun OrderHistoryCard(order: PlacedOrder, foodNameById: Map<Int, String>)
                 color = Orange.copy(alpha = 0.15f),
                 shape = RoundedCornerShape(22.dp)
             ),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFCFA)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(22.dp),
 //        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -470,12 +473,12 @@ private fun OrderHistoryCard(order: PlacedOrder, foodNameById: Map<Int, String>)
                         "訂單 #${order.id ?: "-"}",
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
-                        color = Color(0xFF4E342E)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     formattedCreatedAt?.let {
                         Text(
                             it,
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -500,7 +503,7 @@ private fun OrderHistoryCard(order: PlacedOrder, foodNameById: Map<Int, String>)
                         Icon(
                             imageVector = Icons.Rounded.ExpandMore,
                             contentDescription = null,
-                            tint = Color.Gray,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
                                 .padding(start = 8.dp)
                                 .rotate(detailsArrowRotation)
@@ -531,7 +534,7 @@ private fun OrderHistoryCard(order: PlacedOrder, foodNameById: Map<Int, String>)
                             modifier = Modifier.weight(1f),
                             label = "支付方式",
                             value = order.payment.displayName,
-                            valueColor = Color(0xFF37474F)
+                            valueColor = MaterialTheme.colorScheme.onSurface
                         )
                     }
 
@@ -539,30 +542,36 @@ private fun OrderHistoryCard(order: PlacedOrder, foodNameById: Map<Int, String>)
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(14.dp))
-                            .background(Color(0xFFFFF4EB))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
                             .padding(10.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
                             "配送資訊",
-                            color = Color(0xFF795548),
+                            color = MaterialTheme.colorScheme.primary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
                         Text(
                             "地址：${order.address.ifBlank { "-" }}",
-                            color = Color(0xFF5D4037),
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 13.sp
                         )
                         if (order.note.isNotBlank()) {
-                            Text("備註：${order.note}", color = Color(0xFF6D4C41), fontSize = 13.sp)
+                            Text(
+                                "備註：${order.note}",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 13.sp
+                            )
                         }
                     }
 
                     if (order.items.isNotEmpty()) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFDF6F0)),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                            ),
                             shape = RoundedCornerShape(14.dp)
                         ) {
                             Column {
@@ -577,13 +586,13 @@ private fun OrderHistoryCard(order: PlacedOrder, foodNameById: Map<Int, String>)
                                     Text(
                                         "購買品項 (${order.items.size})",
                                         fontWeight = FontWeight.Medium,
-                                        color = Color(0xFF424242),
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         fontSize = 13.sp
                                     )
                                     Icon(
                                         imageVector = Icons.Rounded.ExpandMore,
                                         contentDescription = null,
-                                        tint = Color.Gray,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier
                                             .rotate(itemsArrowRotation)
                                             .size(18.dp)
@@ -600,14 +609,14 @@ private fun OrderHistoryCard(order: PlacedOrder, foodNameById: Map<Int, String>)
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .clip(RoundedCornerShape(10.dp))
-                                                    .background(Color(0xFFF7F7F7))
+                                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f))
                                                     .padding(horizontal = 8.dp, vertical = 6.dp),
                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Text(
                                                     foodNameById[item.id] ?: "商品 #${item.id}",
-                                                    color = Color(0xFF455A64),
+                                                    color = MaterialTheme.colorScheme.onSurface,
                                                     fontSize = 12.sp
                                                 )
                                                 Box(
@@ -673,11 +682,11 @@ private fun OrderMetaBlock(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(30f))
-            .background(Color(0xFFFFF1E5))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
             .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        Text(label, color = Color.Gray, fontSize = 12.sp)
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
         Text(
             value,
             color = valueColor,

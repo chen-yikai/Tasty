@@ -1,5 +1,6 @@
 package dev.eliaschen.tasty.screen
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material3.Badge
@@ -31,6 +33,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -41,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -189,19 +193,21 @@ fun Home(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
                                 onClick = { selectedTypeId = it.id },
                                 label = { Text(it.name) },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = Color.White,
-                                    selectedContainerColor = Orange,
-                                    selectedLabelColor = Color.White
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                                 ), border = null
                             )
                         }
                     }
-                    Text(
-                        selectedType?.description.orEmpty(),
-                        modifier = Modifier.padding(horizontal = 15.dp),
-                        color = Color.White,
-                        fontSize = 15.sp
-                    )
+                    Crossfade(selectedType?.description.orEmpty()) {
+                        Text(
+                            it,
+                            modifier = Modifier.padding(horizontal = 15.dp),
+                            color = Color.White,
+                            fontSize = 15.sp
+                        )
+                    }
                 }
             }
         }
@@ -224,7 +230,7 @@ fun Home(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
                         .height(500.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("找不到該項目的食品", color = Color.Gray)
+                    Text("找不到該項目的食品", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         } else {
@@ -259,8 +265,14 @@ fun FoodCard(
     Card(
         modifier = Modifier
             .padding(horizontal = 10.dp)
+            .background(
+                MaterialTheme.colorScheme.background,
+                androidx.compose.foundation.shape.RoundedCornerShape(30f)
+            )
             .height(200.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF1E5))
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+        )
     ) {
         Box(contentAlignment = Alignment.Center) {
             Row(
@@ -271,6 +283,7 @@ fun FoodCard(
                     modifier = Modifier
                         .width(150.dp)
                         .fillMaxHeight()
+                        .clip(RoundedCornerShape(bottomEnd = 30f, topEnd = 30f))
                 ) {
                     AsyncImage(
                         "$apiHostUrl/${food.imageUrl}",
@@ -290,14 +303,20 @@ fun FoodCard(
                         fontWeight = FontWeight.Bold,
                         color = Orange
                     )
-                    Text(food.remark)
+                    Text(food.remark, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
-                        Text("$ ${food.price.formattedPrice()}")
+                        Text(
+                            "$ ${food.price.formattedPrice()}",
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                         if (price !== null)
-                            Text("x $quality", color = Color.Gray)
+                            Text(
+                                "x $quality",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                     }
                     Spacer(Modifier.weight(1f))
                     if (price != null) {
@@ -333,9 +352,9 @@ fun FoodCard(
                     modifier = Modifier
                         .pointerInput(Unit) {}
                         .fillMaxSize()
-                        .background(Color.White.copy(0.7f))
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
                 )
-                Text("已完售")
+                Text("已完售", color = MaterialTheme.colorScheme.onSurface)
             }
         }
     }

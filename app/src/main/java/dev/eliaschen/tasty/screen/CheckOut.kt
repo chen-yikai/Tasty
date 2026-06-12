@@ -1,5 +1,6 @@
 package dev.eliaschen.tasty.screen
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -18,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -28,10 +31,14 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,6 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -74,17 +82,19 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
     val cartItems = remember { mutableStateListOf<Food>() }
     var totalPrice by remember { mutableStateOf(0f) }
 
-    LaunchedEffect(api.cart.size, api.cart.toList()) {
-        cartItems.clear()
+    LaunchedEffect(api.cart.size, api.cart.toList().hashCode()) {
         var calculatedTotal = 0f
 
         try {
-            api.cart.forEach { item ->
+            val newData = api.cart.map { item ->
                 api.getFoodById(item.id)?.let { foodDetails ->
-                    cartItems.add(foodDetails)
                     calculatedTotal += item.count * foodDetails.price
-                }
-            }
+                    foodDetails
+                }!!
+            }.sortedBy { it.name }
+            cartItems.clear()
+            cartItems.addAll(newData)
+
             totalPrice = calculatedTotal
         } catch (e: Exception) {
             e.printStackTrace()
@@ -191,13 +201,23 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
                                 shape = RoundedCornerShape(30f),
                                 isError = addressError,
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    unfocusedContainerColor = Color.White.copy(0.5f),
-                                    focusedContainerColor = Color.White.copy(0.8f),
-                                    unfocusedBorderColor = Orange.copy(0.5f),
+                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(
+                                        alpha = 0.72f
+                                    ),
+                                    focusedContainerColor = MaterialTheme.colorScheme.surface.copy(
+                                        alpha = 0.92f
+                                    ),
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(
+                                        alpha = 0.6f
+                                    ),
                                     focusedBorderColor = Orange,
-                                    errorContainerColor = Color.White.copy(0.8f),
-                                    errorBorderColor = Color.Red,
-                                    errorPlaceholderColor = Color.Red.copy(0.6f)
+                                    errorContainerColor = MaterialTheme.colorScheme.surface.copy(
+                                        alpha = 0.92f
+                                    ),
+                                    errorBorderColor = MaterialTheme.colorScheme.error,
+                                    errorPlaceholderColor = MaterialTheme.colorScheme.error.copy(
+                                        alpha = 0.7f
+                                    )
                                 ),
                             )
                             ExposedDropdownMenuBox(
@@ -211,9 +231,15 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
                                     placeholder = { Text("支付方式") },
                                     shape = RoundedCornerShape(30f),
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        unfocusedContainerColor = Color.White.copy(0.5f),
-                                        focusedContainerColor = Color.White.copy(0.8f),
-                                        unfocusedBorderColor = Orange.copy(0.5f),
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(
+                                            alpha = 0.72f
+                                        ),
+                                        focusedContainerColor = MaterialTheme.colorScheme.surface.copy(
+                                            alpha = 0.92f
+                                        ),
+                                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(
+                                            alpha = 0.6f
+                                        ),
                                         focusedBorderColor = Orange,
                                     ),
                                     readOnly = true,
@@ -244,9 +270,11 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
                             placeholder = { Text("備註") },
                             shape = RoundedCornerShape(30f),
                             colors = OutlinedTextFieldDefaults.colors(
-                                unfocusedContainerColor = Color.White.copy(0.5f),
-                                focusedContainerColor = Color.White.copy(0.8f),
-                                unfocusedBorderColor = Orange.copy(0.5f),
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(
+                                    alpha = 0.72f
+                                ),
+                                focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
                                 focusedBorderColor = Orange,
                             ),
                         )
@@ -254,37 +282,42 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
                 }
             }
 
-            if (cartItems.isEmpty()) {
-                item {
+            item {
+                if (cartItems.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 140.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("購物車目前沒有商品", color = Color.Gray, fontSize = 16.sp)
+                        Text(
+                            "購物車目前沒有商品",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 16.sp
+                        )
                     }
                 }
-            } else {
-                items(cartItems, key = { it.id }) { food ->
-                    val cartItem = api.cart.firstOrNull { it.id == food.id }
-                    val count = cartItem?.count ?: 0
-                    val subTotal = food.price * count
-
-                    FoodCard(
-                        food = food,
-                        price = subTotal,
-                        api = api,
-                        enableQuantityAdjust = true,
-                    )
-                }
+            }
+            items(cartItems, key = { it.id }) { food ->
+                val cartItem = api.cart.firstOrNull { it.id == food.id }
+                val count = cartItem?.count ?: 0
+                val subTotal = food.price * count
+                SwipeToDeleteCheckoutItemCard(
+                    food = food,
+                    subTotal = subTotal,
+                    api = api,
+                    onDelete = { targetFood ->
+                        api.cart.removeIf { it.id == targetFood.id }
+                    }, modifier = Modifier
+                        .animateItem()
+                )
             }
         }
 
         Row(
             modifier = Modifier
                 .shadow(20.dp)
-                .background(Color.White)
+                .background(MaterialTheme.colorScheme.surface)
                 .padding(horizontal = 20.dp, vertical = 10.dp)
                 .fillMaxWidth()
                 .navigationBarsPadding(),
@@ -292,7 +325,7 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column {
-                Text("總金額", fontSize = 15.sp, color = Color.Gray)
+                Text("總金額", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
                     "$ ${totalPrice.formattedPrice()}",
                     color = Orange,
@@ -307,7 +340,7 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
                 enabled = api.cart.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Orange,
-                    disabledContainerColor = Color.Gray.copy(0.4f)
+                    disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
                 ),
                 shape = RoundedCornerShape(30f)
             ) {
@@ -327,7 +360,7 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
                     api.cart.clear()
                     NavController.navigate(Screen.Home)
                 }) {
-                    Text("確認", color = Color(0xFFD84343))
+                    Text("確認", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
@@ -335,6 +368,55 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
                     Text("取消")
                 }
             }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeToDeleteCheckoutItemCard(
+    food: Food,
+    subTotal: Float,
+    api: NetworkClient,
+    onDelete: (Food) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        positionalThreshold = { distance -> distance * 0.8f }
+    )
+
+    SwipeToDismissBox(
+        state = dismissState, modifier = modifier.animateContentSize(),
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = true,
+        onDismiss = {
+            if (it == SwipeToDismissBoxValue.EndToStart) {
+                onDelete(food)
+            }
+        },
+        backgroundContent = {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 10.dp)
+                    .clip(RoundedCornerShape(30f))
+                    .background(MaterialTheme.colorScheme.error)
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Delete,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onError
+                )
+            }
+        }
+    ) {
+        FoodCard(
+            food = food,
+            price = subTotal,
+            api = api,
+            enableQuantityAdjust = true,
         )
     }
 }
