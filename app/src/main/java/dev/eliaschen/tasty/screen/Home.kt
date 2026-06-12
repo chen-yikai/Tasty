@@ -158,7 +158,7 @@ fun Home(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
                         }
                         Box {
                             val count = api.cart.sumOf { it.count }
-                            IconButton(onClick = { if (count != 0) NavController.navigate(Screen.CheckOut) }) {
+                            IconButton(onClick = { NavController.navigate(Screen.CheckOut) }) {
                                 Icon(
                                     painterResource(R.drawable.icon_cart),
                                     contentDescription = null, tint = Color.White
@@ -236,7 +236,12 @@ fun Home(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
 }
 
 @Composable
-fun FoodCard(food: Food, price: Float? = null, api: NetworkClient = hiltViewModel()) {
+fun FoodCard(
+    food: Food,
+    price: Float? = null,
+    api: NetworkClient = hiltViewModel(),
+    enableQuantityAdjust: Boolean = price == null,
+) {
     var quality by remember { mutableStateOf(0) }
 
     LaunchedEffect(api.cart.size, api.cart.toList()) {
@@ -301,7 +306,7 @@ fun FoodCard(food: Food, price: Float? = null, api: NetworkClient = hiltViewMode
                             color = Orange, fontStyle = FontStyle.Italic
                         )
                     }
-                    if (price == null)
+                    if (enableQuantityAdjust)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Spacer(Modifier.weight(1f))
                             if (quality != 0) {

@@ -57,6 +57,8 @@ class NetworkClient @Inject constructor(
     var address by mutableStateOf("")
     var cart = mutableStateListOf<CartItem>()
     var pendingOrder by mutableStateOf<Order?>(null)
+    var agentMessages = mutableStateListOf<AgentMessage>()
+    var isAgentBottomSheetVisible by mutableStateOf(false)
 
     private val sharedPreferences = context.getSharedPreferences("app", Context.MODE_PRIVATE)
 
@@ -192,6 +194,38 @@ class NetworkClient @Inject constructor(
         NavController.navigate(Screen.Account)
     }
 
+    suspend fun chatWithAgent(messages: List<AgentMessage>): List<AgentMessage>? {
+        val res = try {
+            ktor.post("/api/agent/chat") {
+                setBody(AgentChatRequest(messages))
+            }
+        } catch (_: Exception) {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "無法連線到 TT 助理，請稍後再試", Toast.LENGTH_SHORT).show()
+            }
+            return null
+        }
+
+        if (!res.status.isSuccess()) {
+            val error = runCatching {
+                res.body<JsonObject>()["error"]?.jsonPrimitive?.contentOrNull
+            }.getOrNull() ?: "TT 助理暫時無法使用"
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
+            }
+            return null
+        }
+
+        return try {
+            res.body<List<AgentMessage>>()
+        } catch (_: Exception) {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "TT 回應格式錯誤，請稍後再試", Toast.LENGTH_SHORT).show()
+            }
+            null
+        }
+    }
+
     suspend fun getPlacedOrders(): List<PlacedOrder> {
         val allOrders =
             runCatching {
@@ -255,6 +289,8 @@ class NetworkClient @Inject constructor(
         email = null
         address = ""
         cart.clear()
+        agentMessages.clear()
+        isAgentBottomSheetVisible = false
         sharedPreferences.edit { clear() }
         NavController.screenStack.clear()
         NavController.screenStack.add(Screen.Auth)

@@ -3,6 +3,7 @@ package dev.eliaschen.tasty.screen
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,9 +13,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -35,10 +38,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -56,7 +59,6 @@ import dev.eliaschen.tasty.core.Payment
 import dev.eliaschen.tasty.core.Screen
 import dev.eliaschen.tasty.core.apiHostUrl
 import dev.eliaschen.tasty.ui.theme.Orange
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -71,8 +73,6 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
 
     val cartItems = remember { mutableStateListOf<Food>() }
     var totalPrice by remember { mutableStateOf(0f) }
-
-    val scope = rememberCoroutineScope()
 
     LaunchedEffect(api.cart.size, api.cart.toList()) {
         cartItems.clear()
@@ -151,12 +151,24 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
                                 color = Color.White
                             )
                         }
-                        IconButton(onClick = { if (api.cart.isNotEmpty()) showClearCartDialog = true }) {
-                            Icon(
-                                painterResource(R.drawable.clear),
-                                contentDescription = null,
-                                tint = Color.White
-                            )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { api.isAgentBottomSheetVisible = true }) {
+                                Icon(
+                                    painterResource(R.drawable.wand_spark),
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(25.dp)
+                                )
+                            }
+                            IconButton(onClick = {
+                                if (api.cart.isNotEmpty()) showClearCartDialog = true
+                            }) {
+                                Icon(
+                                    painterResource(R.drawable.clear),
+                                    contentDescription = null,
+                                    tint = Color.White
+                                )
+                            }
                         }
                     }
                     Column(
@@ -242,12 +254,30 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
                 }
             }
 
-            items(cartItems, key = { it.id }) { food ->
-                val cartItem = api.cart.firstOrNull { it.id == food.id }
-                val count = cartItem?.count ?: 0
-                val subTotal = food.price * count
+            if (cartItems.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 140.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("購物車目前沒有商品", color = Color.Gray, fontSize = 16.sp)
+                    }
+                }
+            } else {
+                items(cartItems, key = { it.id }) { food ->
+                    val cartItem = api.cart.firstOrNull { it.id == food.id }
+                    val count = cartItem?.count ?: 0
+                    val subTotal = food.price * count
 
-                FoodCard(food, subTotal)
+                    FoodCard(
+                        food = food,
+                        price = subTotal,
+                        api = api,
+                        enableQuantityAdjust = true,
+                    )
+                }
             }
         }
 

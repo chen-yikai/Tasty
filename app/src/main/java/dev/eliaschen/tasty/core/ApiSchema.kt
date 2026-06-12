@@ -73,3 +73,15 @@ data class PlacedOrder(
     @SerialName("user_email") val userEmail: String? = null,
     @SerialName("created_at") val createdAt: String? = null,
 )
+
+@Serializable
+data class AgentMessage(
+    val author: String,
+    val type: String,
+    val content: String,
+)
+
+@Serializable
+data class AgentChatRequest(
+    val messages: List<AgentMessage>,
+)
