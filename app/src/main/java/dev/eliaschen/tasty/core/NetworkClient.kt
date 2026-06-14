@@ -49,7 +49,8 @@ const val apiHostUrl = "https://tasty.skills.eliaschen.dev"
 
 @HiltViewModel
 class NetworkClient @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val navigationManager: NavigationManager
 ) : ViewModel() {
 
     var token by mutableStateOf<String?>(null)
@@ -135,7 +136,7 @@ class NetworkClient @Inject constructor(
             this.email = resBody["email"]?.jsonPrimitive?.contentOrNull ?: email
             address = resBody["address"]?.jsonPrimitive?.contentOrNull ?: address
             writeAuthData()
-            NavController.navigate(Screen.Home)
+            navigationManager.navigate(Screen.Home)
             return null
         } else {
             val error = runCatching {
@@ -194,7 +195,7 @@ class NetworkClient @Inject constructor(
 
         Log.i("PlaceOrder", "order submitted")
         cart.clear()
-        NavController.navigate(Screen.Account)
+        navigationManager.navigate(Screen.Account)
     }
 
     suspend fun saveAddressToApi(newAddress: String): Boolean {
@@ -228,6 +229,7 @@ class NetworkClient @Inject constructor(
     suspend fun chatWithAgent(messages: List<AgentMessage>): List<AgentMessage>? {
         val res = try {
             ktor.post("/api/agent/chat") {
+                header("Authorization", "Bearer $token")
                 setBody(AgentChatRequest(messages))
             }
         } catch (_: Exception) {
@@ -323,8 +325,6 @@ class NetworkClient @Inject constructor(
         agentMessages.clear()
         isAgentBottomSheetVisible = false
         sharedPreferences.edit { clear() }
-        NavController.screenStack.clear()
-        NavController.screenStack.add(Screen.Auth)
-        NavController.navigate(Screen.Auth)
+        navigationManager.resetTo(Screen.Auth)
     }
 }

@@ -62,7 +62,7 @@ import androidx.compose.ui.unit.sp
 import dev.eliaschen.tasty.R
 import dev.eliaschen.tasty.core.AgentMessage
 import dev.eliaschen.tasty.core.CartItem
-import dev.eliaschen.tasty.core.NavController
+import dev.eliaschen.tasty.core.LocalNavController
 import dev.eliaschen.tasty.core.NetworkClient
 import dev.eliaschen.tasty.core.Screen
 import dev.eliaschen.tasty.ui.theme.Orange
@@ -84,20 +84,19 @@ fun CartAgentBottomSheet(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val navController = LocalNavController.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val messages = api.agentMessages
     var input by remember { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
     var conversationVersion by remember { mutableStateOf(0) }
-    val isCartScreen = NavController.currentScreen == Screen.CheckOut
+    val isCartScreen = navController.currentScreen == Screen.CheckOut
 
     val listState = rememberLazyListState()
 
     LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.lastIndex)
-        }
+        listState.animateScrollToItem(messages.lastIndex)
     }
 
     fun sendMessage() {
@@ -159,7 +158,7 @@ fun CartAgentBottomSheet(
                     IconButton(
                         onClick = {
                             api.isAgentBottomSheetVisible = false
-                            NavController.navigate(Screen.CheckOut)
+                            navController.navigate(Screen.CheckOut)
                         },
                     ) {
                         Icon(

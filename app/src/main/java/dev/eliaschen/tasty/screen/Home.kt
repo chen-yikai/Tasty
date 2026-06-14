@@ -62,7 +62,7 @@ import dev.eliaschen.tasty.component.HeroHeader
 import dev.eliaschen.tasty.core.CartItem
 import dev.eliaschen.tasty.core.Food
 import dev.eliaschen.tasty.core.FoodType
-import dev.eliaschen.tasty.core.NavController
+import dev.eliaschen.tasty.core.LocalNavController
 import dev.eliaschen.tasty.core.NetworkClient
 import dev.eliaschen.tasty.core.Screen
 import dev.eliaschen.tasty.core.apiHostUrl
@@ -72,6 +72,7 @@ import kotlin.math.roundToInt
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun Home(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
+    val navController = LocalNavController.current
     val foodTypes = remember { mutableStateListOf<FoodType>() }
     val foods = remember { mutableStateListOf<Food>() }
     var selectedTypeId by remember { mutableStateOf(0) }
@@ -150,7 +151,7 @@ fun Home(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
                         color = Color.White
                     )
                     Row {
-                        IconButton(onClick = { NavController.navigate(Screen.Account) }) {
+                        IconButton(onClick = { navController.navigate(Screen.Account) }) {
                             Icon(
                                 Icons.Outlined.AccountCircle,
                                 contentDescription = null,
@@ -162,7 +163,7 @@ fun Home(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
                         }
                         Box {
                             val count = api.cart.sumOf { it.count }
-                            IconButton(onClick = { NavController.navigate(Screen.CheckOut) }) {
+                            IconButton(onClick = { navController.navigate(Screen.CheckOut) }) {
                                 Icon(
                                     painterResource(R.drawable.icon_cart),
                                     contentDescription = null, tint = Color.White
@@ -230,7 +231,7 @@ fun Home(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
                         .height(500.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("找不到該項目的食品", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("找不到該類型的食品", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         } else {

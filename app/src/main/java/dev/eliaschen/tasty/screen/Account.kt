@@ -74,7 +74,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.eliaschen.tasty.R
 import dev.eliaschen.tasty.component.HeroHeader
-import dev.eliaschen.tasty.core.NavController
+import dev.eliaschen.tasty.core.LocalNavController
 import dev.eliaschen.tasty.core.NetworkClient
 import dev.eliaschen.tasty.core.OrderStatus
 import dev.eliaschen.tasty.core.PlacedOrder
@@ -93,6 +93,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
+    val navController = LocalNavController.current
     val placedOrders = remember { mutableStateListOf<PlacedOrder>() }
     val foodNamesById = remember { mutableStateMapOf<Int, String>() }
     val scope = rememberCoroutineScope()
@@ -147,7 +148,7 @@ fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel())
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { NavController.navigate(Screen.Home) }) {
+                        IconButton(onClick = { navController.navigate(Screen.Home) }) {
                             Icon(
                                 painterResource(R.drawable.arrow_back),
                                 contentDescription = null,

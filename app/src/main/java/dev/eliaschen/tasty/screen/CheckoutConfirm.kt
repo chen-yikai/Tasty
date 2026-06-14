@@ -46,7 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import dev.eliaschen.tasty.core.NavController
+import dev.eliaschen.tasty.core.LocalNavController
 import dev.eliaschen.tasty.core.NetworkClient
 import dev.eliaschen.tasty.core.Screen
 import dev.eliaschen.tasty.ui.theme.Orange
@@ -61,6 +61,7 @@ private data class ConfirmCartItem(
 
 @Composable
 fun CheckoutConfirm(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
+    val navController = LocalNavController.current
     val scope = rememberCoroutineScope()
     var progress by remember { mutableFloatStateOf(1f) }
     var showContent by remember { mutableStateOf(false) }
@@ -115,7 +116,7 @@ fun CheckoutConfirm(modifier: Modifier = Modifier, api: NetworkClient = hiltView
 
     fun cancelAndGoBack() {
         countdownActive = false
-        if (!NavController.goBack()) NavController.navigate(Screen.CheckOut)
+        if (!navController.goBack()) navController.navigate(Screen.CheckOut)
     }
 
     Column(modifier = modifier.fillMaxSize()) {

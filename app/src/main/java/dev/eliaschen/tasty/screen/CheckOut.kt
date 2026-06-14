@@ -60,7 +60,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import dev.eliaschen.tasty.R
 import dev.eliaschen.tasty.component.HeroHeader
 import dev.eliaschen.tasty.core.Food
-import dev.eliaschen.tasty.core.NavController
+import dev.eliaschen.tasty.core.LocalNavController
 import dev.eliaschen.tasty.core.NetworkClient
 import dev.eliaschen.tasty.core.Order
 import dev.eliaschen.tasty.core.Payment
@@ -71,6 +71,7 @@ import dev.eliaschen.tasty.ui.theme.Orange
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
+    val navController = LocalNavController.current
     var address by remember { mutableStateOf(api.address) }
     var note by remember { mutableStateOf("") }
     var showPayment by remember { mutableStateOf(false) }
@@ -126,7 +127,7 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
             totalPrice = totalPrice,
             items = api.cart.toList()
         )
-        NavController.navigate(Screen.CheckOutConfirm)
+        navController.navigate(Screen.CheckOutConfirm)
     }
 
     Column(modifier = modifier) {
@@ -147,7 +148,7 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { NavController.navigate(Screen.Home) }) {
+                            IconButton(onClick = { navController.navigate(Screen.Home) }) {
                                 Icon(
                                     painterResource(R.drawable.arrow_back),
                                     contentDescription = null,
@@ -358,7 +359,7 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
                 TextButton(onClick = {
                     showClearCartDialog = false
                     api.cart.clear()
-                    NavController.navigate(Screen.Home)
+                    navController.navigate(Screen.Home)
                 }) {
                     Text("確認", color = MaterialTheme.colorScheme.error)
                 }

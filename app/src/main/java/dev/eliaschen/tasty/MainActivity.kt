@@ -8,14 +8,11 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -25,6 +22,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -33,13 +31,21 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation3.ui.NavDisplay
+import androidx.navigation3.runtime.NavEntry
+import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.rememberNavBackStack
 import dagger.hilt.android.AndroidEntryPoint
 import dev.eliaschen.tasty.component.OfflineOverlay
-import dev.eliaschen.tasty.core.NavController
+import dev.eliaschen.tasty.core.LocalNavController
+import dev.eliaschen.tasty.core.NavAction
+import dev.eliaschen.tasty.core.NavigationManager
 import dev.eliaschen.tasty.core.NetworkClient
 import dev.eliaschen.tasty.core.NetworkObserver
 import dev.eliaschen.tasty.core.Screen
+import dev.eliaschen.tasty.core.NavController as TastyNavController
 import dev.eliaschen.tasty.screen.Account
 import dev.eliaschen.tasty.screen.AuthScreen
 import dev.eliaschen.tasty.screen.CartAgentBottomSheet
@@ -52,10 +58,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 import kotlin.math.sqrt
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    @Inject
+    lateinit var navigationManager: NavigationManager
     private lateinit var sensorManager: SensorManager
     private var accelerometer: Sensor? = null
     private var shakeListener: SensorEventListener? = null
@@ -64,26 +73,66 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        requestNotificationPermissionIfNeeded()
         handleNotificationIntent(intent)
         setupShakeDetector()
         setContent {
             TastyTheme {
                 val sharedPreferences = this.getSharedPreferences("app", Context.MODE_PRIVATE)
                 val api: NetworkClient = hiltViewModel()
-                var init by remember { mutableStateOf(false) }
+                var init by rememberSaveable { mutableStateOf(false) }
                 val networkObserver = remember { NetworkObserver(this) }
                 val isOnline by networkObserver.isOnline.collectAsState(initial = true)
-                val currentScreen = NavController.currentScreen
+
+                val initialKey = remember {
+                    if (sharedPreferences.getString(
+                            "token",
+                            null
+                        ) != null
+                    ) Screen.Home else Screen.Auth
+                }
+                val backStack = rememberNavBackStack(initialKey)
+                val navController = remember(backStack) {
+                    object : TastyNavController {
+                        override val currentScreen: Screen get() = backStack.last() as Screen
+                        override fun navigate(screen: Screen) {
+                            backStack.add(screen)
+                        }
+
+                        override fun goBack(): Boolean {
+                            if (backStack.size > 1) {
+                                backStack.removeAt(backStack.size - 1)
+                                return true
+                            }
+                            return false
+                        }
+
+                        override fun resetTo(screen: Screen) {
+                            backStack.clear()
+                            backStack.add(screen)
+                        }
+                    }
+                }
+
+                LaunchedEffect(navigationManager) {
+                    navigationManager.events.collect { action ->
+                        when (action) {
+                            is NavAction.Navigate -> navController.navigate(action.screen)
+                            is NavAction.GoBack -> navController.goBack()
+                            is NavAction.Reset -> navController.resetTo(action.screen)
+                        }
+                    }
+                }
+
+                val currentScreen = navController.currentScreen
                 val canOpenAgentSheet =
                     currentScreen != Screen.Auth && currentScreen != Screen.CheckOutConfirm
 
                 LaunchedEffect(Unit) {
-                    sharedPreferences.getString("token", null)?.let {
-                        NavController.screenStack.removeLast()
-                        NavController.navigate(Screen.Home)
-                    }
                     init = true
+                }
+
+                LaunchedEffect(navController.currentScreen) {
+                    if (navController.currentScreen == Screen.Home) requestNotificationPermissionIfNeeded()
                 }
 
                 LaunchedEffect(api.token) {
@@ -119,38 +168,47 @@ class MainActivity : ComponentActivity() {
                 }
 
                 BackHandler {
-                    if (!NavController.goBack()) {
+                    if (!navController.goBack()) {
                         finish()
                     }
                 }
+                CompositionLocalProvider(LocalNavController provides navController) {
 
-                if (init) {
-                    if (!isOnline) {
-                        OfflineOverlay()
-                    } else {
-                        Surface(color = MaterialTheme.colorScheme.background) {
-                            AnimatedContent(
-                                NavController.currentScreen,
-                                transitionSpec = {
-                                    if (targetState.order == 0 || targetState.order == 1) {
-                                        return@AnimatedContent fadeIn() togetherWith fadeOut()
-                                    }
-                                    if (targetState.order < initialState.order) {
-                                        fadeIn(tween(500)) togetherWith slideOutHorizontally { it } + fadeOut()
-                                    } else {
-                                        slideInHorizontally { it } + fadeIn() togetherWith ExitTransition.KeepUntilTransitionsFinished
-                                    }
-                                },
-                                modifier = Modifier.fillMaxSize()
-                            ) {
-                                Surface(color = MaterialTheme.colorScheme.background) {
-                                    when (it) {
-                                        Screen.Home -> Home()
-                                        Screen.CheckOut -> CheckOut()
-                                        Screen.Auth -> AuthScreen()
-                                        Screen.CheckOutConfirm -> CheckoutConfirm()
-                                        Screen.Account -> Account()
-                                        else -> {}
+                    if (init) {
+                        if (!isOnline) {
+                            OfflineOverlay()
+                        } else {
+                            Surface(color = MaterialTheme.colorScheme.background) {
+                                NavDisplay(
+                                    backStack = backStack,
+                                    onBack = { navController.goBack() },
+                                    transitionSpec = {
+                                        val initial =
+                                            initialState.entries.lastOrNull()?.metadata?.get("screen") as? Screen
+                                        val target =
+                                            targetState.entries.lastOrNull()?.metadata?.get("screen") as? Screen
+                                        if (target == null || initial == null || target.order == 0 || target.order == 1) {
+                                            fadeIn() togetherWith fadeOut()
+                                        } else if (target.order < initial.order) {
+                                            fadeIn(tween(500)) togetherWith slideOutHorizontally { it } + fadeOut()
+                                        } else {
+                                            slideInHorizontally { it } + fadeIn() togetherWith fadeOut()
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxSize()
+                                ) { key: NavKey ->
+                                    val screen = key as Screen
+                                    NavEntry(screen, metadata = mapOf("screen" to screen)) {
+                                        Surface(color = MaterialTheme.colorScheme.background) {
+                                            when (screen) {
+                                                Screen.Home -> Home()
+                                                Screen.CheckOut -> CheckOut()
+                                                Screen.Auth -> AuthScreen()
+                                                Screen.CheckOutConfirm -> CheckoutConfirm()
+                                                Screen.Account -> Account()
+                                                else -> {}
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -193,10 +251,10 @@ class MainActivity : ComponentActivity() {
                 val values = event?.values ?: return
                 if (values.size < 3) return
 
-                val gX = values[0] / SensorManager.GRAVITY_EARTH
-                val gY = values[1] / SensorManager.GRAVITY_EARTH
-                val gZ = values[2] / SensorManager.GRAVITY_EARTH
-                val gForce = sqrt(gX * gX + gY * gY + gZ * gZ)
+                val gX = values[0]
+                val gY = values[1]
+                val gZ = values[2]
+                val gForce = sqrt(gX * gX + gY * gY + gZ * gZ) - SensorManager.GRAVITY_EARTH
 
                 if (gForce < SHAKE_THRESHOLD_GRAVITY) return
 
@@ -214,13 +272,12 @@ class MainActivity : ComponentActivity() {
         if (intent?.action == ACTION_OPEN_ACCOUNT) {
             CoroutineScope(Dispatchers.Main).launch {
                 delay(1000)
-                NavController.navigate(Screen.Account)
+                navigationManager.navigate(Screen.Account)
             }
         }
     }
 
     private fun requestNotificationPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
         if (
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
         ) return
@@ -229,7 +286,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val ACTION_OPEN_ACCOUNT = "dev.eliaschen.tasty.ACTION_OPEN_ACCOUNT"
-        private const val SHAKE_THRESHOLD_GRAVITY = 1.9f
-        private const val SHAKE_COOLDOWN_MS = 700L
+        private const val SHAKE_THRESHOLD_GRAVITY = 3f
+        private const val SHAKE_COOLDOWN_MS = 500L
     }
 }
