@@ -1,6 +1,14 @@
 package dev.eliaschen.tasty.screen
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -53,6 +61,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -246,6 +256,7 @@ fun Home(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
 fun FoodCard(
     food: Food,
     price: Float? = null,
+    originalPrice: Float? = null,
     api: NetworkClient = hiltViewModel(),
     enableQuantityAdjust: Boolean = price == null,
 ) {
@@ -256,7 +267,7 @@ fun FoodCard(
     }
 
     fun adjustQuality(factor: Int) {
-        quality = (quality + factor).coerceIn(0, 5)
+        quality = (quality + factor).coerceIn(0, 15)
         api.cart.removeIf { it.id == food.id }
         if (quality > 0) {
             api.cart.add(CartItem(food.id, quality))
@@ -322,24 +333,51 @@ fun FoodCard(
                     Spacer(Modifier.weight(1f))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (price != null) {
-                            Text(
-                                "$ ${price.formattedPrice()}",
-                                color = Orange, fontStyle = FontStyle.Italic
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                if (originalPrice != null) {
+                                    Text(
+                                        "$ ${originalPrice.formattedPrice()}",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textDecoration = TextDecoration.LineThrough,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                Text(
+                                    "$ ${price.formattedPrice()}",
+                                    color = Orange,
+                                    fontStyle = FontStyle.Italic,
+                                    fontWeight = if (originalPrice != null) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
                         }
                         Spacer(Modifier.weight(1f))
                         if (enableQuantityAdjust) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Spacer(Modifier.weight(1f))
-                                if (quality != 0) {
-                                    IconButton(onClick = { adjustQuality(-1) }) {
-                                        Icon(
-                                            painterResource(R.drawable.icon_minus),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(20.dp)
-                                        )
+                                AnimatedVisibility(quality != 0, enter = fadeIn(), exit = fadeOut()) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(onClick = { adjustQuality(-1) }) {
+                                            Icon(
+                                                painterResource(R.drawable.icon_minus),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                        AnimatedContent(quality.toString(), transitionSpec = {
+                                            val factor = if (targetState > initialState) 1 else -1
+                                            (fadeIn() + slideInVertically { it * factor } togetherWith fadeOut() + slideOutVertically { -it * factor }).using(
+                                                SizeTransform(clip = false)
+                                            )
+                                        }) {
+                                            Text(
+                                                it,
+                                                modifier = Modifier.width(20.dp),
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
                                     }
-                                    Text(quality.toString())
                                 }
                                 IconButton(onClick = { adjustQuality(+1) }) {
                                     Icon(
@@ -366,4 +404,4 @@ fun FoodCard(
 }
 
 fun Float.formattedPrice(): String =
-    if (this % 1.0f == 0f) this.roundToInt().toString() else this.toString()
+    if (this % 1.0f == 0f) this.roundToInt().toString() else "%.1f".format(this)

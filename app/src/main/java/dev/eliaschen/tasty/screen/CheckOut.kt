@@ -54,6 +54,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -67,6 +68,9 @@ import dev.eliaschen.tasty.core.Payment
 import dev.eliaschen.tasty.core.Screen
 import dev.eliaschen.tasty.core.apiHostUrl
 import dev.eliaschen.tasty.ui.theme.Orange
+
+private const val BULK_DISCOUNT_THRESHOLD = 5
+private const val BULK_DISCOUNT_RATE = 0.9f
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -82,14 +86,20 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
 
     val cartItems = remember { mutableStateListOf<Food>() }
     var totalPrice by remember { mutableStateOf(0f) }
+    var originalTotalPrice by remember { mutableStateOf(0f) }
 
     LaunchedEffect(api.cart.size, api.cart.toList().hashCode()) {
         var calculatedTotal = 0f
+        var calculatedOriginalTotal = 0f
 
         try {
             val newData = api.cart.map { item ->
                 api.getFoodById(item.id)?.let { foodDetails ->
-                    calculatedTotal += item.count * foodDetails.price
+                    val itemOriginal = item.count * foodDetails.price
+                    val itemFinal = if (item.count >= BULK_DISCOUNT_THRESHOLD)
+                        itemOriginal * BULK_DISCOUNT_RATE else itemOriginal
+                    calculatedOriginalTotal += itemOriginal
+                    calculatedTotal += itemFinal
                     foodDetails
                 }!!
             }.sortedBy { it.name }
@@ -97,6 +107,7 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
             cartItems.addAll(newData)
 
             totalPrice = calculatedTotal
+            originalTotalPrice = calculatedOriginalTotal
         } catch (e: Exception) {
             e.printStackTrace()
 
@@ -302,10 +313,13 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
             items(cartItems, key = { it.id }) { food ->
                 val cartItem = api.cart.firstOrNull { it.id == food.id }
                 val count = cartItem?.count ?: 0
-                val subTotal = food.price * count
+                val rawSubTotal = food.price * count
+                val isDiscounted = count >= BULK_DISCOUNT_THRESHOLD
+                val subTotal = if (isDiscounted) rawSubTotal * BULK_DISCOUNT_RATE else rawSubTotal
                 SwipeToDeleteCheckoutItemCard(
                     food = food,
                     subTotal = subTotal,
+                    originalSubTotal = if (isDiscounted) rawSubTotal else null,
                     api = api,
                     onDelete = { targetFood ->
                         api.cart.removeIf { it.id == targetFood.id }
@@ -327,6 +341,14 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
         ) {
             Column {
                 Text("總金額", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (originalTotalPrice > totalPrice) {
+                    Text(
+                        "$ ${originalTotalPrice.formattedPrice()}",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textDecoration = TextDecoration.LineThrough,
+                        fontSize = 13.sp
+                    )
+                }
                 Text(
                     "$ ${totalPrice.formattedPrice()}",
                     color = Orange,
@@ -378,6 +400,7 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
 private fun SwipeToDeleteCheckoutItemCard(
     food: Food,
     subTotal: Float,
+    originalSubTotal: Float? = null,
     api: NetworkClient,
     onDelete: (Food) -> Unit,
     modifier: Modifier = Modifier
@@ -416,6 +439,7 @@ private fun SwipeToDeleteCheckoutItemCard(
         FoodCard(
             food = food,
             price = subTotal,
+            originalPrice = originalSubTotal,
             api = api,
             enableQuantityAdjust = true,
         )
