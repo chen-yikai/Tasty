@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.CancellationSignal
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -72,6 +73,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import dev.eliaschen.tasty.R
 import dev.eliaschen.tasty.component.HeroHeader
 import dev.eliaschen.tasty.core.Food
@@ -85,7 +88,9 @@ import dev.eliaschen.tasty.ui.theme.Orange
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import java.util.Locale
 import kotlin.coroutines.resume
 
 private const val BULK_DISCOUNT_THRESHOLD = 5
@@ -480,61 +485,22 @@ fun CheckOut(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()
     }
 }
 
-@SuppressWarnings("MissingPermission")
-private suspend fun resolveCurrentAddress(context: Context): String? {
-    val location = fetchCurrentLocation(context) ?: return null
-    return withContext(Dispatchers.IO) {
-        try {
-            val locale = context.resources.configuration.locales[0]
-            val geocoder = Geocoder(context, locale)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                suspendCancellableCoroutine { cont ->
-                    geocoder.getFromLocation(location.latitude, location.longitude, 1) { results ->
-                        cont.resume(results.firstOrNull()?.getAddressLine(0))
-                    }
-                }
-            } else {
-                @Suppress("DEPRECATION")
-                geocoder.getFromLocation(location.latitude, location.longitude, 1)
-                    ?.firstOrNull()?.getAddressLine(0)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
-    }
-}
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+suspend fun resolveCurrentAddress(context: Context): String? = withContext(Dispatchers.IO) {
+    runCatching {
+        val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+        val location =
+            fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null).await()
+                ?: return@withContext null
 
-@SuppressWarnings("MissingPermission")
-private suspend fun fetchCurrentLocation(context: Context): android.location.Location? {
-    val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
-    val providers = listOf(
-        LocationManager.GPS_PROVIDER,
-        LocationManager.NETWORK_PROVIDER,
-        LocationManager.FUSED_PROVIDER
-    ).filter { runCatching { lm.isProviderEnabled(it) }.getOrDefault(false) }
-    if (providers.isEmpty()) return null
+        val geocoder = Geocoder(context, Locale.getDefault())
 
-    val provider = providers.first()
-    return try {
         suspendCancellableCoroutine { cont ->
-            val signal = CancellationSignal()
-            cont.invokeOnCancellation { signal.cancel() }
-            ContextCompat.getMainExecutor(context).let { executor ->
-                lm.getCurrentLocation(provider, signal, executor) { location ->
-                    val fallback = location ?: providers.firstNotNullOfOrNull { p ->
-                        runCatching { lm.getLastKnownLocation(p) }.getOrNull()
-                    }
-                    cont.resume(fallback)
-                }
+            geocoder.getFromLocation(location.latitude, location.longitude, 1) { addresses ->
+                cont.resume(addresses.firstOrNull()?.getAddressLine(0), onCancellation = null)
             }
         }
-    } catch (e: SecurityException) {
-        null
-    } catch (e: Exception) {
-        e.printStackTrace()
-        null
-    }
+    }.getOrNull()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

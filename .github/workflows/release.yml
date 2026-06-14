@@ -5,17 +5,45 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      name:
+        description: 'Release/APK name (e.g. v1.0.0)'
+        required: true
 
 permissions:
   contents: write
 
 jobs:
   build:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '@build<')
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Extract build name from commit message
+        id: parse
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            NAME="${{ github.event.inputs.name }}"
+          else
+            MSG=$(git log -1 --pretty=%B)
+            if [[ "$MSG" =~ @build\<([^>]+)\> ]]; then
+              NAME="${BASH_REMATCH[1]}"
+            else
+              echo "::error::Commit message missing @build<name> marker"
+              exit 1
+            fi
+          fi
+          # Sanitize: strip spaces, restrict to safe filename chars
+          NAME="${NAME// /-}"
+          if [[ ! "$NAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            echo "::error::Invalid build name '$NAME' (allowed: A-Z a-z 0-9 . _ -)"
+            exit 1
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "Build name: $NAME"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -36,13 +64,13 @@ jobs:
         run: |
           mkdir -p artifacts
           cp app/build/outputs/apk/debug/app-debug.apk \
-             "artifacts/tasty-build-${{ github.run_number }}.apk"
+             "artifacts/tasty-${{ steps.parse.outputs.name }}.apk"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
-          name: Build ${{ github.run_number }}
+          tag_name: ${{ steps.parse.outputs.name }}
+          name: ${{ steps.parse.outputs.name }}
           body: |
             Automated build from commit ${{ github.sha }}.
           files: artifacts/*.apk

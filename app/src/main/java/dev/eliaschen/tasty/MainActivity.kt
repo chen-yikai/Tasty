@@ -195,6 +195,34 @@ class MainActivity : ComponentActivity() {
                                             slideInHorizontally { it } + fadeIn() togetherWith fadeOut()
                                         }
                                     },
+                                    popTransitionSpec = {
+                                        val initial =
+                                            initialState.entries.lastOrNull()?.metadata?.get("screen") as? Screen
+                                        val target =
+                                            targetState.entries.lastOrNull()?.metadata?.get("screen") as? Screen
+                                        if (target == null || initial == null || target.order == 0 || target.order == 1) {
+                                            fadeIn() togetherWith fadeOut()
+                                        } else if (target.order < initial.order) {
+                                            slideInHorizontally { -it / 4 } + fadeIn() togetherWith
+                                                slideOutHorizontally { it } + fadeOut()
+                                        } else {
+                                            slideInHorizontally { it } + fadeIn() togetherWith fadeOut()
+                                        }
+                                    },
+                                    predictivePopTransitionSpec = {
+                                        val initial =
+                                            initialState.entries.lastOrNull()?.metadata?.get("screen") as? Screen
+                                        val target =
+                                            targetState.entries.lastOrNull()?.metadata?.get("screen") as? Screen
+                                        if (target == null || initial == null || target.order == 0 || target.order == 1) {
+                                            fadeIn() togetherWith fadeOut()
+                                        } else if (target.order < initial.order) {
+                                            slideInHorizontally { -it / 4 } + fadeIn() togetherWith
+                                                slideOutHorizontally { it } + fadeOut()
+                                        } else {
+                                            slideInHorizontally { it } + fadeIn() togetherWith fadeOut()
+                                        }
+                                    },
                                     modifier = Modifier.fillMaxSize()
                                 ) { key: NavKey ->
                                     val screen = key as Screen

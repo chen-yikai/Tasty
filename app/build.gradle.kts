@@ -12,7 +12,7 @@ android {
 
     defaultConfig {
         applicationId = "dev.eliaschen.tasty"
-        minSdk = 32
+        minSdk = 33
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -39,6 +39,7 @@ android {
 }
 
 dependencies {
+    implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.androidx.lifecycle.viewmodel.navigation3)
@@ -46,6 +47,7 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.hilt)
+    implementation(libs.play.services.location)
     ksp(libs.hilt.compiler)
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.android)
