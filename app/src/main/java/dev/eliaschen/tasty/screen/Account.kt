@@ -1,5 +1,10 @@
 package dev.eliaschen.tasty.screen
 
+import android.graphics.Bitmap
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
@@ -26,8 +31,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MarkunreadMailbox
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.PhotoCamera
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -38,6 +48,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -66,12 +77,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil3.compose.AsyncImage
 import dev.eliaschen.tasty.R
 import dev.eliaschen.tasty.component.HeroHeader
 import dev.eliaschen.tasty.core.LocalNavController
@@ -81,6 +97,7 @@ import dev.eliaschen.tasty.core.PlacedOrder
 import dev.eliaschen.tasty.core.Screen
 import dev.eliaschen.tasty.core.apiHostUrl
 import dev.eliaschen.tasty.ui.theme.Orange
+import java.io.ByteArrayOutputStream
 import java.text.DateFormat
 import java.time.Instant
 import java.time.LocalDateTime
@@ -94,6 +111,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
     val navController = LocalNavController.current
+    val context = LocalContext.current
     val placedOrders = remember { mutableStateListOf<PlacedOrder>() }
     val foodNamesById = remember { mutableStateMapOf<Int, String>() }
     val scope = rememberCoroutineScope()
@@ -101,6 +119,42 @@ fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel())
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showAddressSheet by remember { mutableStateOf(false) }
     var editableAddress by remember { mutableStateOf(api.address) }
+    var showAvatarPicker by remember { mutableStateOf(false) }
+    var uploadingAvatar by remember { mutableStateOf(false) }
+
+    val username = api.username ?: "Guest"
+    val avatarChar = username.firstOrNull()?.uppercase() ?: "?"
+
+    fun uploadAndSaveAvatar(bytes: ByteArray) {
+        scope.launch {
+            uploadingAvatar = true
+            val filename = api.uploadAvatar(bytes)
+            if (filename != null) {
+                api.saveAvatarToApi(filename)
+                showAvatarPicker = false
+            }
+            uploadingAvatar = false
+        }
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        uri ?: return@rememberLauncherForActivityResult
+        val bytes = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        }.getOrNull() ?: return@rememberLauncherForActivityResult
+        uploadAndSaveAvatar(bytes)
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicturePreview()
+    ) { bitmap: Bitmap? ->
+        bitmap ?: return@rememberLauncherForActivityResult
+        val output = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)
+        uploadAndSaveAvatar(output.toByteArray())
+    }
 
     suspend fun reloadAccountOrders() {
         val orders = api.getPlacedOrders()
@@ -126,6 +180,70 @@ fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel())
         loading = false
         api.observeOrderUpdates("orders") { _ ->
             reloadAccountOrders()
+        }
+    }
+
+    if (showAvatarPicker) {
+        ModalBottomSheet(
+            onDismissRequest = { showAvatarPicker = false },
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(
+                        bottom = WindowInsets.navigationBars.asPaddingValues()
+                            .calculateBottomPadding()
+                    ),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text("更換頭像", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                Box(contentAlignment = Alignment.Center) {
+                    Avatar(
+                        avatar = api.avatar,
+                        fallbackChar = avatarChar,
+                        size = 110.dp
+                    )
+                    if (uploadingAvatar) {
+                        CircularProgressIndicator(color = Orange)
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            galleryLauncher.launch(
+                                PickVisualMediaRequest(
+                                    ActivityResultContracts.PickVisualMedia.ImageOnly
+                                )
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                        enabled = !uploadingAvatar,
+                        colors = ButtonDefaults.buttonColors(containerColor = Orange),
+                        shape = RoundedCornerShape(30f)
+                    ) {
+                        Icon(Icons.Rounded.PhotoLibrary, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("從相簿選擇")
+                    }
+                    Button(
+                        onClick = { cameraLauncher.launch(null) },
+                        modifier = Modifier.weight(1f),
+                        enabled = !uploadingAvatar,
+                        colors = ButtonDefaults.buttonColors(containerColor = Orange),
+                        shape = RoundedCornerShape(30f)
+                    ) {
+                        Icon(Icons.Rounded.PhotoCamera, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("拍照")
+                    }
+                }
+            }
         }
     }
 
@@ -167,16 +285,14 @@ fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel())
                         showAddressSheet = true
                     }) {
                         Icon(
-                            imageVector = Icons.Rounded.Settings,
+                            imageVector = Icons.Default.LocationOn,
                             contentDescription = null,
                             tint = Color.White
                         )
                     }
                 }
 
-                val username = api.username ?: "Guest"
                 val email = api.email ?: "-"
-                val avatarChar = username.firstOrNull()?.uppercase() ?: "?"
 
                 Row(
                     modifier = Modifier
@@ -199,20 +315,12 @@ fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel())
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                    Box(
-                        modifier = Modifier
-                            .size(70.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(0.8f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            avatarChar,
-                            color = Orange,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 30.sp,
-                        )
-                    }
+                    Avatar(
+                        avatar = api.avatar,
+                        fallbackChar = avatarChar,
+                        size = 70.dp,
+                        onEditClick = { showAvatarPicker = true }
+                    )
                 }
                 Button(
                     onClick = { showLogoutDialog = true },
@@ -328,7 +436,9 @@ fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel())
                     singleLine = true,
                     shape = RoundedCornerShape(30f),
                     colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(
+                            alpha = 0.6f
+                        ),
                         focusedContainerColor = MaterialTheme.colorScheme.surface,
                         unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
                         focusedBorderColor = Orange
@@ -610,7 +720,11 @@ private fun OrderHistoryCard(order: PlacedOrder, foodNameById: Map<Int, String>)
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .clip(RoundedCornerShape(10.dp))
-                                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f))
+                                                    .background(
+                                                        MaterialTheme.colorScheme.surface.copy(
+                                                            alpha = 0.8f
+                                                        )
+                                                    )
                                                     .padding(horizontal = 8.dp, vertical = 6.dp),
                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                 verticalAlignment = Alignment.CenterVertically
@@ -671,6 +785,58 @@ private fun parseCreatedAtInstant(value: String): Instant? {
                     .toInstant()
             }.getOrNull()
         }
+}
+
+@Composable
+private fun Avatar(
+    avatar: String?,
+    fallbackChar: String,
+    size: Dp,
+    modifier: Modifier = Modifier,
+    onEditClick: (() -> Unit)? = null,
+) {
+    Box(modifier) {
+        Box(
+            modifier = Modifier
+                .size(size)
+                .clip(CircleShape)
+                .background(Color.White.copy(0.8f)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (!avatar.isNullOrBlank()) {
+                AsyncImage(
+                    model = "$apiHostUrl/$avatar",
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Text(
+                    fallbackChar,
+                    color = Orange,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = (size.value * 0.43f).sp,
+                )
+            }
+        }
+        if (onEditClick != null) {
+            IconButton(
+                onClick = onEditClick,
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = Orange.copy(0.8f)
+                ),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .scale(0.6f)
+                    .graphicsLayer {
+                        translationY = this.size.width / 2
+                        translationX = this.size.width / 2
+                    }
+            ) {
+                Icon(Icons.Rounded.Edit, contentDescription = null)
+            }
+        }
+    }
 }
 
 @Composable

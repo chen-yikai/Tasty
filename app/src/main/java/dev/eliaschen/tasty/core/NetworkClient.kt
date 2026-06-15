@@ -24,7 +24,11 @@ import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
+import io.ktor.client.request.forms.MultiPartFormDataContent
+import io.ktor.client.request.forms.formData
 import io.ktor.http.ContentType
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
 import io.ktor.http.Url
 import io.ktor.http.contentType
 import io.ktor.http.hostWithPort
@@ -57,6 +61,7 @@ class NetworkClient @Inject constructor(
     var username by mutableStateOf<String?>(null)
     var email by mutableStateOf<String?>(null)
     var address by mutableStateOf("")
+    var avatar by mutableStateOf<String?>(null)
     var cart = mutableStateListOf<CartItem>()
     var pendingOrder by mutableStateOf<Order?>(null)
     var agentMessages = mutableStateListOf<AgentMessage>()
@@ -85,6 +90,12 @@ class NetworkClient @Inject constructor(
         username = sharedPreferences.getString("username", null)
         email = sharedPreferences.getString("email", null)
         address = sharedPreferences.getString("address", "") ?: ""
+        avatar = sharedPreferences.getString("avatar", null)
+    }
+
+    fun updateAvatar(filename: String?) {
+        avatar = filename
+        sharedPreferences.edit { putString("avatar", filename) }
     }
 
     fun writeAuthData() {
@@ -94,6 +105,7 @@ class NetworkClient @Inject constructor(
                 putString("username", username)
                 putString("email", email)
                 putString("address", address)
+                putString("avatar", avatar)
             }
         }
     }
@@ -135,6 +147,7 @@ class NetworkClient @Inject constructor(
             username = resBody["username"]?.jsonPrimitive?.contentOrNull
             this.email = resBody["email"]?.jsonPrimitive?.contentOrNull ?: email
             address = resBody["address"]?.jsonPrimitive?.contentOrNull ?: address
+            avatar = resBody["avatar"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
             writeAuthData()
             navigationManager.navigate(Screen.Home)
             return null
@@ -224,6 +237,56 @@ class NetworkClient @Inject constructor(
         }
 
         return false
+    }
+
+    suspend fun uploadAvatar(bytes: ByteArray): String? {
+        val res = runCatching {
+            ktor.post("/api/upload") {
+                contentType(ContentType.MultiPart.FormData)
+                setBody(
+                    MultiPartFormDataContent(
+                        formData {
+                            append(
+                                "file",
+                                bytes,
+                                Headers.build {
+                                    append(HttpHeaders.ContentType, "image/jpeg")
+                                    append(
+                                        HttpHeaders.ContentDisposition,
+                                        "filename=\"avatar.jpg\""
+                                    )
+                                }
+                            )
+                        }
+                    )
+                )
+            }
+        }.getOrElse {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "上傳頭像失敗，請確認網路後再試", Toast.LENGTH_SHORT).show()
+            }
+            return null
+        }
+
+        if (!res.status.isSuccess()) return null
+        return runCatching {
+            res.body<JsonObject>()["filename"]?.jsonPrimitive?.contentOrNull
+        }.getOrNull()
+    }
+
+    suspend fun saveAvatarToApi(filename: String): Boolean {
+        val authToken = token ?: return false
+        val res = runCatching {
+            ktor.put("/api/user/avatar") {
+                header("Authorization", "Bearer $authToken")
+                setBody(mapOf("avatar" to filename))
+            }
+        }.getOrNull() ?: return false
+
+        if (!res.status.isSuccess()) return false
+        avatar = filename
+        sharedPreferences.edit { putString("avatar", filename) }
+        return true
     }
 
     suspend fun chatWithAgent(messages: List<AgentMessage>): List<AgentMessage>? {
@@ -321,6 +384,7 @@ class NetworkClient @Inject constructor(
         username = null
         email = null
         address = ""
+        avatar = null
         cart.clear()
         agentMessages.clear()
         isAgentBottomSheetVisible = false

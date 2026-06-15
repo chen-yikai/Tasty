@@ -1,4 +1,4 @@
-name: Build and Release APK
+name: Build and Release Debug APK
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       name:
-        description: 'Release/APK name (e.g. v1.0.0)'
+        description: "build apk name"
         required: true
 
 permissions:
@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   build:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '@build<')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '#build<')
     runs-on: ubuntu-latest
 
     steps:
@@ -49,7 +49,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4

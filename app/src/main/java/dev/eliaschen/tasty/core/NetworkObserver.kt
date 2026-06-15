@@ -23,26 +23,13 @@ class NetworkObserver(context: Context) {
             override fun onLost(network: Network) {
                 trySend(false)
             }
-
-            override fun onCapabilitiesChanged(
-                network: Network,
-                networkCapabilities: NetworkCapabilities
-            ) {
-                val hasInternet = networkCapabilities.hasCapability(
-                    NetworkCapabilities.NET_CAPABILITY_INTERNET
-                ) && networkCapabilities.hasCapability(
-                    NetworkCapabilities.NET_CAPABILITY_VALIDATED
-                )
-                trySend(hasInternet)
-            }
         }
 
         val request =
             NetworkRequest.Builder().addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
                 .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
                 .addTransportType(NetworkCapabilities.TRANSPORT_CELLULAR)
-                .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
+                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
                 .build()
 
         val currentNetwork = connectivityManager.activeNetwork

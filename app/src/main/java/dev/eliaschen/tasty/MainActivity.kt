@@ -203,8 +203,8 @@ class MainActivity : ComponentActivity() {
                                         if (target == null || initial == null || target.order == 0 || target.order == 1) {
                                             fadeIn() togetherWith fadeOut()
                                         } else if (target.order < initial.order) {
-                                            slideInHorizontally { -it / 4 } + fadeIn() togetherWith
-                                                slideOutHorizontally { it } + fadeOut()
+                                            fadeIn() togetherWith
+                                                    slideOutHorizontally { it } + fadeOut()
                                         } else {
                                             slideInHorizontally { it } + fadeIn() togetherWith fadeOut()
                                         }
@@ -217,8 +217,8 @@ class MainActivity : ComponentActivity() {
                                         if (target == null || initial == null || target.order == 0 || target.order == 1) {
                                             fadeIn() togetherWith fadeOut()
                                         } else if (target.order < initial.order) {
-                                            slideInHorizontally { -it / 4 } + fadeIn() togetherWith
-                                                slideOutHorizontally { it } + fadeOut()
+                                            fadeIn() togetherWith
+                                                    slideOutHorizontally { it } + fadeOut()
                                         } else {
                                             slideInHorizontally { it } + fadeIn() togetherWith fadeOut()
                                         }
