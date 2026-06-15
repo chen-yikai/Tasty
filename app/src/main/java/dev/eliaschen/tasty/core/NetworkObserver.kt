@@ -4,7 +4,6 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
-import android.net.NetworkRequest
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -15,33 +14,32 @@ class NetworkObserver(context: Context) {
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
     val isOnline: Flow<Boolean> = callbackFlow {
+        fun NetworkCapabilities.isUsable(): Boolean =
+            hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                    hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+
         val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                trySend(true)
+            override fun onCapabilitiesChanged(
+                network: Network,
+                networkCapabilities: NetworkCapabilities
+            ) {
+                trySend(networkCapabilities.isUsable())
             }
 
             override fun onLost(network: Network) {
                 trySend(false)
             }
-        }
 
-        val request =
-            NetworkRequest.Builder().addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                .addTransportType(NetworkCapabilities.TRANSPORT_CELLULAR)
-                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-                .build()
+            override fun onUnavailable() {
+                trySend(false)
+            }
+        }
 
         val currentNetwork = connectivityManager.activeNetwork
         val capabilities = connectivityManager.getNetworkCapabilities(currentNetwork)
-        val isCurrentlyConnected = capabilities?.hasCapability(
-            NetworkCapabilities.NET_CAPABILITY_INTERNET
-        ) == true && capabilities.hasCapability(
-            NetworkCapabilities.NET_CAPABILITY_VALIDATED
-        )
-        trySend(isCurrentlyConnected)
+        trySend(capabilities?.isUsable() == true)
 
-        connectivityManager.registerNetworkCallback(request, callback)
+        connectivityManager.registerDefaultNetworkCallback(callback)
 
         awaitClose {
             connectivityManager.unregisterNetworkCallback(callback)
