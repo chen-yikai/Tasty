@@ -56,8 +56,8 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
 import kotlin.coroutines.coroutineContext
 
-const val apiHostUrl = "http://10.0.2.2:3000"
-//const val apiHostUrl = "https://tasty.skills.eliaschen.dev"
+//const val apiHostUrl = "http://10.0.2.2:3000"
+const val apiHostUrl = "https://tasty.skills.eliaschen.dev"
 
 @HiltViewModel
 class NetworkClient @Inject constructor(

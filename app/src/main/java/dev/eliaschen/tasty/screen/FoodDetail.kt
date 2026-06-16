@@ -1,14 +1,6 @@
 package dev.eliaschen.tasty.screen
 
 import android.view.MotionEvent
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,9 +15,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -33,6 +24,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,10 +41,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.style.TextAlign
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import dev.eliaschen.tasty.R
+import dev.eliaschen.tasty.component.QuantityStepper
 import dev.eliaschen.tasty.core.CartItem
 import dev.eliaschen.tasty.core.Food
 import dev.eliaschen.tasty.core.LocalNavController
@@ -148,6 +140,20 @@ fun FoodDetail(
                             .fillMaxSize()
                             .background(Color.Black.copy(alpha = 0.15f))
                     )
+                    IconButton(
+                        onClick = { navController.goBack() },
+                        modifier = Modifier
+                            .renderInSharedOverlay(sharedTransitionScope)
+                            .statusBarsPadding().padding(start = 15.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(Color.Black.copy(alpha = 0.35f))
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.arrow_back),
+                            contentDescription = null,
+                            tint = Color.White
+                        )
+                    }
                 }
 
                 Column(
@@ -195,60 +201,15 @@ fun FoodDetail(
                         color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Medium
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        AnimatedVisibility(quality != 0, enter = fadeIn(), exit = fadeOut()) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(onClick = { adjustQuality(-1) }) {
-                                    Icon(
-                                        painterResource(R.drawable.icon_minus),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                AnimatedContent(quality.toString(), transitionSpec = {
-                                    val factor = if (targetState > initialState) 1 else -1
-                                    (fadeIn() + slideInVertically { it * factor } togetherWith fadeOut() + slideOutVertically { -it * factor }).using(
-                                        SizeTransform(clip = false)
-                                    )
-                                }) {
-                                    Text(
-                                        it,
-                                        modifier = Modifier.width(24.dp),
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
-                        }
-                        IconButton(onClick = { adjustQuality(+1) }) {
-                            Icon(
-                                painterResource(R.drawable.icon_add),
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
+                    QuantityStepper(
+                        quantity = quality,
+                        onAdjust = ::adjustQuality,
+                        modifier = Modifier.sharedFoodTitle(
+                            sharedTransitionScope,
+                            "food-quality-${food!!.id}"
+                        )
+                    )
                 }
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .padding(
-                    top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 8.dp,
-                    start = 8.dp
-                )
-        ) {
-            IconButton(
-                onClick = { navController.goBack() },
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(Color.Black.copy(alpha = 0.35f))
-            ) {
-                Icon(
-                    painterResource(R.drawable.arrow_back),
-                    contentDescription = null,
-                    tint = Color.White
-                )
             }
         }
     }

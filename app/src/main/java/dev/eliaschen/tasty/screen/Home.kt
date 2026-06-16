@@ -1,16 +1,10 @@
 package dev.eliaschen.tasty.screen
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -64,7 +58,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -74,6 +67,7 @@ import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import coil3.compose.AsyncImage
 import dev.eliaschen.tasty.R
 import dev.eliaschen.tasty.component.HeroHeader
+import dev.eliaschen.tasty.component.QuantityStepper
 import dev.eliaschen.tasty.core.CartItem
 import dev.eliaschen.tasty.core.Food
 import dev.eliaschen.tasty.core.LocalNavController
@@ -349,44 +343,14 @@ fun FoodCard(
                         }
                         Spacer(Modifier.weight(1f))
                         if (enableQuantityAdjust) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                            ) {
-                                AnimatedVisibility(
-                                    quality != 0,
-                                    enter = fadeIn(),
-                                    exit = fadeOut()
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        IconButton(onClick = { adjustQuality(-1) }) {
-                                            Icon(
-                                                painterResource(R.drawable.icon_minus),
-                                                contentDescription = null,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                        AnimatedContent(quality.toString(), transitionSpec = {
-                                            val factor = if (targetState > initialState) 1 else -1
-                                            (fadeIn() + slideInVertically { it * factor } togetherWith fadeOut() + slideOutVertically { -it * factor }).using(
-                                                SizeTransform(clip = false)
-                                            )
-                                        }) {
-                                            Text(
-                                                it,
-                                                modifier = Modifier.width(20.dp),
-                                                textAlign = TextAlign.Center
-                                            )
-                                        }
-                                    }
-                                }
-                                IconButton(onClick = { adjustQuality(+1) }) {
-                                    Icon(
-                                        painterResource(R.drawable.icon_add),
-                                        contentDescription = null, modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
+                            QuantityStepper(
+                                quantity = quality,
+                                onAdjust = ::adjustQuality,
+                                modifier = Modifier.sharedFoodTitle(
+                                    sharedTransitionScope,
+                                    qualityKey
+                                )
+                            )
                         }
                     }
                 }
@@ -433,5 +397,28 @@ fun Modifier.sharedFoodTitle(scope: SharedTransitionScope?, key: Any?): Modifier
             rememberSharedContentState(key),
             animatedVisibilityScope = LocalNavAnimatedContentScope.current
         )
+    }
+}
+
+/**
+ * Renders this element in the shared-transition overlay so it stays above shared
+ * elements (e.g. a [sharedFoodImage]) during a transition instead of being drawn
+ * underneath them. [zIndexInOverlay] is higher than the default `0f` used by the
+ * shared image, and [animateEnterExit] fades it in/out with the screen transition.
+ */
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+fun Modifier.renderInSharedOverlay(
+    scope: SharedTransitionScope?,
+    zIndexInOverlay: Float = 1f,
+): Modifier {
+    if (scope == null) return this
+    val animatedVisibilityScope = LocalNavAnimatedContentScope.current
+    return with(scope) {
+        with(animatedVisibilityScope) {
+            this@renderInSharedOverlay
+                .renderInSharedTransitionScopeOverlay(zIndexInOverlay = zIndexInOverlay)
+                .animateEnterExit(enter = fadeIn(), exit = fadeOut())
+        }
     }
 }
