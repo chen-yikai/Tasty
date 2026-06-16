@@ -236,6 +236,7 @@ fun FoodCard(
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val imageKey = if (sharedTransition) "food-image-${food.id}" else null
     val titleKey = if (sharedTransition) "food-title-${food.id}" else null
+    val qualityKey = if (sharedTransition) "food-quality-${food.id}" else null
     var quality by remember { mutableStateOf(0) }
 
     LaunchedEffect(api.cart.size, api.cart.toList()) {
@@ -348,7 +349,10 @@ fun FoodCard(
                         }
                         Spacer(Modifier.weight(1f))
                         if (enableQuantityAdjust) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                            ) {
                                 AnimatedVisibility(
                                     quality != 0,
                                     enter = fadeIn(),

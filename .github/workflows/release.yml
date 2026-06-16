@@ -15,6 +15,7 @@ permissions:
 
 jobs:
   build:
+    # Changed to search for '#build<'
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '#build<')
     runs-on: ubuntu-latest
 
@@ -29,10 +30,11 @@ jobs:
             NAME="${{ github.event.inputs.name }}"
           else
             MSG=$(git log -1 --pretty=%B)
-            if [[ "$MSG" =~ @build\<([^>]+)\> ]]; then
+            # Changed regex pattern from @build\< to #build\<
+            if [[ "$MSG" =~ \#build\<([^>]+)\> ]]; then
               NAME="${BASH_REMATCH[1]}"
             else
-              echo "::error::Commit message missing @build<name> marker"
+              echo "::error::Commit message missing #build<name> marker"
               exit 1
             fi
           fi
