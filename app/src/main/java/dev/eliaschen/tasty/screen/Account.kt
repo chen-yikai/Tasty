@@ -1,13 +1,14 @@
 package dev.eliaschen.tasty.screen
 
 import android.graphics.Bitmap
-import android.net.Uri
+import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -32,13 +33,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.MarkunreadMailbox
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.PhotoLibrary
-import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -54,7 +53,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxDefaults
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -77,6 +75,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -87,6 +86,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil3.Image
 import coil3.compose.AsyncImage
 import dev.eliaschen.tasty.R
 import dev.eliaschen.tasty.component.HeroHeader
@@ -97,7 +97,6 @@ import dev.eliaschen.tasty.core.PlacedOrder
 import dev.eliaschen.tasty.core.Screen
 import dev.eliaschen.tasty.core.apiHostUrl
 import dev.eliaschen.tasty.ui.theme.Orange
-import java.io.ByteArrayOutputStream
 import java.text.DateFormat
 import java.time.Instant
 import java.time.LocalDateTime
@@ -106,12 +105,12 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Date
 import kotlinx.coroutines.launch
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
     val navController = LocalNavController.current
-    val context = LocalContext.current
     val placedOrders = remember { mutableStateListOf<PlacedOrder>() }
     val foodNamesById = remember { mutableStateMapOf<Int, String>() }
     val scope = rememberCoroutineScope()
@@ -120,41 +119,9 @@ fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel())
     var showAddressSheet by remember { mutableStateOf(false) }
     var editableAddress by remember { mutableStateOf(api.address) }
     var showAvatarPicker by remember { mutableStateOf(false) }
-    var uploadingAvatar by remember { mutableStateOf(false) }
 
     val username = api.username ?: "Guest"
     val avatarChar = username.firstOrNull()?.uppercase() ?: "?"
-
-    fun uploadAndSaveAvatar(bytes: ByteArray) {
-        scope.launch {
-            uploadingAvatar = true
-            val filename = api.uploadAvatar(bytes)
-            if (filename != null) {
-                api.saveAvatarToApi(filename)
-                showAvatarPicker = false
-            }
-            uploadingAvatar = false
-        }
-    }
-
-    val galleryLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickVisualMedia()
-    ) { uri: Uri? ->
-        uri ?: return@rememberLauncherForActivityResult
-        val bytes = runCatching {
-            context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-        }.getOrNull() ?: return@rememberLauncherForActivityResult
-        uploadAndSaveAvatar(bytes)
-    }
-
-    val cameraLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.TakePicturePreview()
-    ) { bitmap: Bitmap? ->
-        bitmap ?: return@rememberLauncherForActivityResult
-        val output = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)
-        uploadAndSaveAvatar(output.toByteArray())
-    }
 
     suspend fun reloadAccountOrders() {
         val orders = api.getPlacedOrders()
@@ -184,67 +151,11 @@ fun Account(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel())
     }
 
     if (showAvatarPicker) {
-        ModalBottomSheet(
-            onDismissRequest = { showAvatarPicker = false },
-            containerColor = MaterialTheme.colorScheme.surface
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .padding(
-                        bottom = WindowInsets.navigationBars.asPaddingValues()
-                            .calculateBottomPadding()
-                    ),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text("更換頭像", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                Box(contentAlignment = Alignment.Center) {
-                    Avatar(
-                        avatar = api.avatar,
-                        fallbackChar = avatarChar,
-                        size = 110.dp
-                    )
-                    if (uploadingAvatar) {
-                        CircularProgressIndicator(color = Orange)
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            galleryLauncher.launch(
-                                PickVisualMediaRequest(
-                                    ActivityResultContracts.PickVisualMedia.ImageOnly
-                                )
-                            )
-                        },
-                        modifier = Modifier.weight(1f),
-                        enabled = !uploadingAvatar,
-                        colors = ButtonDefaults.buttonColors(containerColor = Orange),
-                        shape = RoundedCornerShape(30f)
-                    ) {
-                        Icon(Icons.Rounded.PhotoLibrary, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("從相簿選擇")
-                    }
-                    Button(
-                        onClick = { cameraLauncher.launch(null) },
-                        modifier = Modifier.weight(1f),
-                        enabled = !uploadingAvatar,
-                        colors = ButtonDefaults.buttonColors(containerColor = Orange),
-                        shape = RoundedCornerShape(30f)
-                    ) {
-                        Icon(Icons.Rounded.PhotoCamera, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("拍照")
-                    }
-                }
-            }
-        }
+        AvatarPicker(
+            api = api,
+            avatarChar = avatarChar,
+            onDismissRequest = { showAvatarPicker = false }
+        )
     }
 
     LazyColumn(
@@ -787,6 +698,113 @@ private fun parseCreatedAtInstant(value: String): Instant? {
         }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AvatarPicker(
+    api: NetworkClient,
+    avatarChar: String,
+    onDismissRequest: () -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var uploadingAvatar by remember { mutableStateOf(false) }
+    var uploadBitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+    fun uploadAndSaveAvatar(bitmap: Bitmap) {
+        uploadBitmap = bitmap
+        scope.launch {
+            uploadingAvatar = true
+            val file = File(context.cacheDir, "upload_avatar.png")
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, file.outputStream())
+            val filename = api.uploadAvatar(file)
+            if (filename != null) {
+                api.saveAvatarToApi(filename)
+                onDismissRequest()
+            }
+            uploadingAvatar = false
+        }
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) {
+        it?.let { uri ->
+            uploadAndSaveAvatar(
+                context.contentResolver.openInputStream(uri)
+                    .let { inputStream -> BitmapFactory.decodeStream(inputStream) })
+        }
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicturePreview()
+    ) { bitmap: Bitmap? ->
+        bitmap ?: return@rememberLauncherForActivityResult
+        uploadAndSaveAvatar(bitmap)
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(
+                    bottom = WindowInsets.navigationBars.asPaddingValues()
+                        .calculateBottomPadding()
+                ),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text("更換頭像", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            Box(contentAlignment = Alignment.Center) {
+                Avatar(
+                    avatar = api.avatar,
+                    fallbackChar = avatarChar,
+                    size = 110.dp
+                )
+                if (uploadingAvatar) {
+                    CircularProgressIndicator(color = Orange)
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Button(
+                    onClick = {
+                        galleryLauncher.launch(
+                            PickVisualMediaRequest(
+                                ActivityResultContracts.PickVisualMedia.ImageOnly
+                            )
+                        )
+                    },
+                    modifier = Modifier.weight(1f),
+                    enabled = !uploadingAvatar,
+                    colors = ButtonDefaults.buttonColors(containerColor = Orange),
+                    shape = RoundedCornerShape(30f)
+                ) {
+                    Icon(Icons.Rounded.PhotoLibrary, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("從相簿選擇")
+                }
+                Button(
+                    onClick = { cameraLauncher.launch(null) },
+                    modifier = Modifier.weight(1f),
+                    enabled = !uploadingAvatar,
+                    colors = ButtonDefaults.buttonColors(containerColor = Orange),
+                    shape = RoundedCornerShape(30f)
+                ) {
+                    Icon(Icons.Rounded.PhotoCamera, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("拍照")
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun Avatar(
     avatar: String?,
@@ -808,7 +826,7 @@ private fun Avatar(
                     model = "$apiHostUrl/$avatar",
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(), alignment = Alignment.Center
                 )
             } else {
                 Text(

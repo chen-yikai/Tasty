@@ -3,6 +3,8 @@ package dev.eliaschen.tasty.screen
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -11,6 +13,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +33,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
@@ -46,7 +50,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -63,16 +66,18 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import coil3.compose.AsyncImage
 import dev.eliaschen.tasty.R
 import dev.eliaschen.tasty.component.HeroHeader
 import dev.eliaschen.tasty.core.CartItem
 import dev.eliaschen.tasty.core.Food
-import dev.eliaschen.tasty.core.FoodType
 import dev.eliaschen.tasty.core.LocalNavController
+import dev.eliaschen.tasty.core.LocalSharedTransitionScope
 import dev.eliaschen.tasty.core.NetworkClient
 import dev.eliaschen.tasty.core.Screen
 import dev.eliaschen.tasty.core.apiHostUrl
@@ -81,63 +86,24 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun Home(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
+fun Home(
+    modifier: Modifier = Modifier,
+    api: NetworkClient = hiltViewModel(),
+    home: HomeViewModel = hiltViewModel(),
+) {
     val navController = LocalNavController.current
-    val foodTypes = remember { mutableStateListOf<FoodType>() }
-    val foods = remember { mutableStateListOf<Food>() }
-    var selectedTypeId by remember { mutableStateOf(0) }
-    var loading by remember { mutableStateOf(true) }
-
-    suspend fun reloadFoodTypesAndFoods() {
-        val latestFoodTypes = api.getFoodTypes()
-        val resolvedTypeId = when {
-            latestFoodTypes.isEmpty() -> 0
-            latestFoodTypes.any { it.id == selectedTypeId } -> selectedTypeId
-            else -> latestFoodTypes.first().id
-        }
-        val latestFoods = if (resolvedTypeId != 0) api.getFoods(resolvedTypeId) else emptyList()
-
-        foodTypes.clear()
-        foodTypes.addAll(latestFoodTypes)
-        selectedTypeId = resolvedTypeId
-        foods.apply {
-            clear()
-            addAll(latestFoods)
-        }
-    }
-
-    suspend fun reloadSelectedFoods() {
-        if (selectedTypeId == 0) {
-            foods.clear()
-            return
-        }
-
-        loading = true
-        val newData = api.getFoods(selectedTypeId)
-        loading = false
-        foods.clear()
-        foods.addAll(newData)
-    }
+    val listState = rememberLazyListState()
 
     LaunchedEffect(Unit) {
-        loading = true
-        reloadFoodTypesAndFoods()
-        loading = false
-
-        api.observeOrderUpdates("foods") {
-            reloadFoodTypesAndFoods()
-        }
+        home.ensureLoaded(api)
+        api.observeOrderUpdates("foods") { home.refresh(api) }
     }
 
-    LaunchedEffect(selectedTypeId) {
-        if (!loading) {
-            reloadSelectedFoods()
-        }
-    }
-
-    val selectedType = foodTypes.firstOrNull { it.id == selectedTypeId } ?: foodTypes.firstOrNull()
+    val selectedType = home.foodTypes.firstOrNull { it.id == home.selectedTypeId }
+        ?: home.foodTypes.firstOrNull()
 
     LazyColumn(
+        state = listState,
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(10.dp),
         contentPadding = PaddingValues(
@@ -192,16 +158,16 @@ fun Home(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
                         }
                     }
                 }
-                if (foodTypes.isNotEmpty()) {
+                if (home.foodTypes.isNotEmpty()) {
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 15.dp),
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(foodTypes, key = { it.id }) {
+                        items(home.foodTypes, key = { it.id }) {
                             FilterChip(
-                                selected = selectedTypeId == it.id,
-                                onClick = { selectedTypeId = it.id },
+                                selected = home.selectedTypeId == it.id,
+                                onClick = { home.selectType(api, it.id) },
                                 label = { Text(it.name) },
                                 colors = FilterChipDefaults.filterChipColors(
                                     containerColor = MaterialTheme.colorScheme.surface,
@@ -222,7 +188,7 @@ fun Home(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
                 }
             }
         }
-        if (loading) {
+        if (home.loading) {
             item {
                 Box(
                     modifier = Modifier
@@ -233,7 +199,7 @@ fun Home(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
                     CircularProgressIndicator(color = Orange)
                 }
             }
-        } else if (foods.isEmpty()) {
+        } else if (home.foods.isEmpty()) {
             item {
                 Box(
                     modifier = Modifier
@@ -245,8 +211,13 @@ fun Home(modifier: Modifier = Modifier, api: NetworkClient = hiltViewModel()) {
                 }
             }
         } else {
-            items(foods, key = { it.id }) { food ->
-                FoodCard(food = food, api = api)
+            items(home.foods, key = { it.id }) { food ->
+                FoodCard(
+                    food = food,
+                    api = api,
+                    onClick = { navController.navigate(Screen.FoodDetail(food.id)) },
+                    sharedTransition = true
+                )
             }
         }
     }
@@ -259,7 +230,12 @@ fun FoodCard(
     originalPrice: Float? = null,
     api: NetworkClient = hiltViewModel(),
     enableQuantityAdjust: Boolean = price == null,
+    onClick: (() -> Unit)? = null,
+    sharedTransition: Boolean = false,
 ) {
+    val sharedTransitionScope = LocalSharedTransitionScope.current
+    val imageKey = if (sharedTransition) "food-image-${food.id}" else null
+    val titleKey = if (sharedTransition) "food-title-${food.id}" else null
     var quality by remember { mutableStateOf(0) }
 
     LaunchedEffect(api.cart.size, api.cart.toList()) {
@@ -281,7 +257,11 @@ fun FoodCard(
                 MaterialTheme.colorScheme.background,
                 androidx.compose.foundation.shape.RoundedCornerShape(30f)
             )
-            .height(200.dp),
+            .height(200.dp)
+            .then(
+                if (onClick != null && food.stock) Modifier.clickable(onClick = onClick)
+                else Modifier
+            ),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
         )
@@ -300,7 +280,14 @@ fun FoodCard(
                     AsyncImage(
                         "$apiHostUrl/${food.imageUrl}",
                         contentDescription = null,
-                        contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .sharedFoodImage(
+                                sharedTransitionScope,
+                                imageKey,
+                                RoundedCornerShape(30f)
+                            )
+                            .fillMaxSize()
                     )
                 }
                 Column(
@@ -313,9 +300,15 @@ fun FoodCard(
                         food.name,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Orange
+                        color = Orange,
+                        modifier = Modifier.sharedFoodTitle(sharedTransitionScope, titleKey)
                     )
-                    Text(food.remark, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        food.remark,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(5.dp)
@@ -356,7 +349,11 @@ fun FoodCard(
                         Spacer(Modifier.weight(1f))
                         if (enableQuantityAdjust) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                AnimatedVisibility(quality != 0, enter = fadeIn(), exit = fadeOut()) {
+                                AnimatedVisibility(
+                                    quality != 0,
+                                    enter = fadeIn(),
+                                    exit = fadeOut()
+                                ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         IconButton(onClick = { adjustQuality(-1) }) {
                                             Icon(
@@ -405,3 +402,32 @@ fun FoodCard(
 
 fun Float.formattedPrice(): String =
     if (this % 1.0f == 0f) this.roundToInt().toString() else "%.1f".format(this)
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+fun Modifier.sharedFoodImage(
+    scope: SharedTransitionScope?,
+    key: Any?,
+    clip: RoundedCornerShape
+): Modifier {
+    if (scope == null || key == null) return this
+    return with(scope) {
+        this@sharedFoodImage.sharedBounds(
+            rememberSharedContentState(key),
+            animatedVisibilityScope = LocalNavAnimatedContentScope.current,
+            clipInOverlayDuringTransition = OverlayClip(clip)
+        )
+    }
+}
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+fun Modifier.sharedFoodTitle(scope: SharedTransitionScope?, key: Any?): Modifier {
+    if (scope == null || key == null) return this
+    return with(scope) {
+        this@sharedFoodTitle.sharedBounds(
+            rememberSharedContentState(key),
+            animatedVisibilityScope = LocalNavAnimatedContentScope.current
+        )
+    }
+}

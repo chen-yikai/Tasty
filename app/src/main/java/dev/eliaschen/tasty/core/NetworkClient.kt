@@ -34,6 +34,7 @@ import io.ktor.http.contentType
 import io.ktor.http.hostWithPort
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
+import io.ktor.utils.io.streams.asInput
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import jakarta.inject.Inject
@@ -45,11 +46,18 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.asRequestBody
+import java.io.File
 import kotlin.coroutines.coroutineContext
 
-//const val apiHostUrl = "http://10.0.2.2:3000"
-const val apiHostUrl = "https://tasty.skills.eliaschen.dev"
+const val apiHostUrl = "http://10.0.2.2:3000"
+//const val apiHostUrl = "https://tasty.skills.eliaschen.dev"
 
 @HiltViewModel
 class NetworkClient @Inject constructor(
@@ -91,6 +99,7 @@ class NetworkClient @Inject constructor(
         email = sharedPreferences.getString("email", null)
         address = sharedPreferences.getString("address", "") ?: ""
         avatar = sharedPreferences.getString("avatar", null)
+        Log.i("Token", token.toString())
     }
 
     fun updateAvatar(filename: String?) {
@@ -239,41 +248,54 @@ class NetworkClient @Inject constructor(
         return false
     }
 
-    suspend fun uploadAvatar(bytes: ByteArray): String? {
-        val res = runCatching {
-            ktor.post("/api/upload") {
-                contentType(ContentType.MultiPart.FormData)
-                setBody(
-                    MultiPartFormDataContent(
-                        formData {
-                            append(
-                                "file",
-                                bytes,
-                                Headers.build {
-                                    append(HttpHeaders.ContentType, "image/jpeg")
-                                    append(
-                                        HttpHeaders.ContentDisposition,
-                                        "filename=\"avatar.jpg\""
-                                    )
-                                }
-                            )
-                        }
-                    )
-                )
+    suspend fun uploadAvatar(file: File, client: OkHttpClient = OkHttpClient()): String? = withContext(Dispatchers.IO) {
+
+        // 1. Prepare the file request body with its content type
+        val fileRequestBody = file.asRequestBody("image/png".toMediaTypeOrNull())
+
+        // 2. Build the Multipart request body
+        val requestBody = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart(
+                name = "file",          // The backend field key
+                filename = file.name,   // The actual file name
+                body = fileRequestBody
+            )
+            .build()
+
+        // 3. Build the full POST request
+        val request = Request.Builder()
+            .url("$apiHostUrl/api/upload") // Ensure your base URL is prepended
+            .post(requestBody)
+            .build()
+
+        // 4. Execute the network request safely
+        val responseString = runCatching {
+            client.newCall(request).execute().use { response ->
+                Log.e("avatar", "Status Code: ${response.code}")
+
+                if (!response.isSuccessful) return@withContext null
+
+                // Read the raw string body
+                response.body?.string()
             }
         }.getOrElse {
-            withContext(Dispatchers.Main) {
-                Toast.makeText(context, "上傳頭像失敗，請確認網路後再試", Toast.LENGTH_SHORT).show()
-            }
-            return null
+            Log.e("UploadImage", "Network error: ${it.message}")
+            return@withContext null
         }
 
-        if (!res.status.isSuccess()) return null
-        return runCatching {
-            res.body<JsonObject>()["filename"]?.jsonPrimitive?.contentOrNull
-        }.getOrNull()
+        return@withContext runCatching {
+            if (responseString != null) {
+                val jsonObject = Json.parseToJsonElement(responseString).jsonObject
+                jsonObject["filename"]?.jsonPrimitive?.contentOrNull?.also {
+                    Log.i("UploadImage", "Success: $it")
+                }
+            } else null
+        }.getOrElse {
+            Log.e("UploadImage", "JSON Parsing error: ${it.message}")
+            null
+        }
     }
-
     suspend fun saveAvatarToApi(filename: String): Boolean {
         val authToken = token ?: return false
         val res = runCatching {

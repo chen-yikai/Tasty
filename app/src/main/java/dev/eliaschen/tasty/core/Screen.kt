@@ -12,4 +12,5 @@ sealed interface Screen : NavKey {
     @Serializable data object CheckOut : Screen { override val order = 3 }
     @Serializable data object CheckOutConfirm : Screen { override val order = 4 }
     @Serializable data object Account : Screen { override val order = 3 }
+    @Serializable data class FoodDetail(val id: Int) : Screen { override val order = 3 }
 }

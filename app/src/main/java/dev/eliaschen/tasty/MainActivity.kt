@@ -13,6 +13,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -34,8 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation3.ui.NavDisplay
-import androidx.navigation3.runtime.NavEntry
-import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import dagger.hilt.android.AndroidEntryPoint
 import dev.eliaschen.tasty.component.OfflineOverlay
@@ -44,6 +45,7 @@ import dev.eliaschen.tasty.core.NavAction
 import dev.eliaschen.tasty.core.NavigationManager
 import dev.eliaschen.tasty.core.NetworkClient
 import dev.eliaschen.tasty.core.NetworkObserver
+import dev.eliaschen.tasty.core.LocalSharedTransitionScope
 import dev.eliaschen.tasty.core.Screen
 import dev.eliaschen.tasty.core.NavController as TastyNavController
 import dev.eliaschen.tasty.screen.Account
@@ -51,6 +53,7 @@ import dev.eliaschen.tasty.screen.AuthScreen
 import dev.eliaschen.tasty.screen.CartAgentBottomSheet
 import dev.eliaschen.tasty.screen.CheckOut
 import dev.eliaschen.tasty.screen.CheckoutConfirm
+import dev.eliaschen.tasty.screen.FoodDetail
 import dev.eliaschen.tasty.screen.Home
 import dev.eliaschen.tasty.service.OrderUpdateNotificationService
 import dev.eliaschen.tasty.ui.theme.TastyTheme
@@ -70,6 +73,8 @@ class MainActivity : ComponentActivity() {
     private var shakeListener: SensorEventListener? = null
     private var onShakeDetected: (() -> Unit)? = null
     private var lastShakeAt = 0L
+
+    @OptIn(ExperimentalSharedTransitionApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -172,71 +177,94 @@ class MainActivity : ComponentActivity() {
                         finish()
                     }
                 }
-                CompositionLocalProvider(LocalNavController provides navController) {
 
+                CompositionLocalProvider(LocalNavController provides navController) {
                     if (init) {
                         if (!isOnline) {
                             OfflineOverlay()
                         } else {
-                            Surface(color = MaterialTheme.colorScheme.background) {
-                                NavDisplay(
-                                    backStack = backStack,
-                                    onBack = { navController.goBack() },
-                                    transitionSpec = {
-                                        val initial =
-                                            initialState.entries.lastOrNull()?.metadata?.get("screen") as? Screen
-                                        val target =
-                                            targetState.entries.lastOrNull()?.metadata?.get("screen") as? Screen
-                                        if (target == null || initial == null || target.order == 0 || target.order == 1) {
-                                            fadeIn() togetherWith fadeOut()
-                                        } else if (target.order < initial.order) {
-                                            fadeIn(tween(500)) togetherWith slideOutHorizontally { it } + fadeOut()
-                                        } else {
-                                            slideInHorizontally { it } + fadeIn() togetherWith fadeOut()
-                                        }
-                                    },
-                                    popTransitionSpec = {
-                                        val initial =
-                                            initialState.entries.lastOrNull()?.metadata?.get("screen") as? Screen
-                                        val target =
-                                            targetState.entries.lastOrNull()?.metadata?.get("screen") as? Screen
-                                        if (target == null || initial == null || target.order == 0 || target.order == 1) {
-                                            fadeIn() togetherWith fadeOut()
-                                        } else if (target.order < initial.order) {
-                                            fadeIn() togetherWith
-                                                    slideOutHorizontally { it } + fadeOut()
-                                        } else {
-                                            slideInHorizontally { it } + fadeIn() togetherWith fadeOut()
-                                        }
-                                    },
-                                    predictivePopTransitionSpec = {
-                                        val initial =
-                                            initialState.entries.lastOrNull()?.metadata?.get("screen") as? Screen
-                                        val target =
-                                            targetState.entries.lastOrNull()?.metadata?.get("screen") as? Screen
-                                        if (target == null || initial == null || target.order == 0 || target.order == 1) {
-                                            fadeIn() togetherWith fadeOut()
-                                        } else if (target.order < initial.order) {
-                                            fadeIn() togetherWith
-                                                    slideOutHorizontally { it } + fadeOut()
-                                        } else {
-                                            slideInHorizontally { it } + fadeIn() togetherWith fadeOut()
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxSize()
-                                ) { key: NavKey ->
-                                    val screen = key as Screen
-                                    NavEntry(screen, metadata = mapOf("screen" to screen)) {
-                                        Surface(color = MaterialTheme.colorScheme.background) {
-                                            when (screen) {
-                                                Screen.Home -> Home()
-                                                Screen.CheckOut -> CheckOut()
-                                                Screen.Auth -> AuthScreen()
-                                                Screen.CheckOutConfirm -> CheckoutConfirm()
-                                                Screen.Account -> Account()
-                                                else -> {}
+                            SharedTransitionLayout {
+                                CompositionLocalProvider(LocalSharedTransitionScope provides this) {
+                                    Surface(color = MaterialTheme.colorScheme.background) {
+                                        NavDisplay(
+                                            backStack = backStack,
+                                            onBack = { navController.goBack() },
+                                            transitionSpec = {
+                                                val initial =
+                                                    initialState.entries.lastOrNull()?.metadata?.get(
+                                                        "screen"
+                                                    ) as? Screen
+                                                val target =
+                                                    targetState.entries.lastOrNull()?.metadata?.get(
+                                                        "screen"
+                                                    ) as? Screen
+                                                if (target == null || initial == null || target.order == 0 || target.order == 1) {
+                                                    fadeIn() togetherWith fadeOut()
+                                                } else if (target.order < initial.order) {
+                                                    fadeIn() togetherWith
+                                                            slideOutHorizontally { it } + fadeOut()
+                                                } else {
+                                                    slideInHorizontally { it } + fadeIn() togetherWith fadeOut()
+                                                }
+                                            },
+                                            popTransitionSpec = {
+                                                val initial =
+                                                    initialState.entries.lastOrNull()?.metadata?.get(
+                                                        "screen"
+                                                    ) as? Screen
+                                                val target =
+                                                    targetState.entries.lastOrNull()?.metadata?.get(
+                                                        "screen"
+                                                    ) as? Screen
+                                                if (target == null || initial == null || target.order == 0 || target.order == 1) {
+                                                    fadeIn() togetherWith fadeOut()
+                                                } else if (target.order < initial.order) {
+                                                    fadeIn() togetherWith
+                                                            slideOutHorizontally { it } + fadeOut()
+                                                } else {
+                                                    slideInHorizontally { it } + fadeIn() togetherWith fadeOut()
+                                                }
+                                            },
+                                            predictivePopTransitionSpec = {
+                                                val initial =
+                                                    initialState.entries.lastOrNull()?.metadata?.get(
+                                                        "screen"
+                                                    ) as? Screen
+                                                val target =
+                                                    targetState.entries.lastOrNull()?.metadata?.get(
+                                                        "screen"
+                                                    ) as? Screen
+                                                if (target == null || initial == null || target.order == 0 || target.order == 1) {
+                                                    fadeIn() togetherWith fadeOut()
+                                                } else if (target.order < initial.order) {
+                                                    fadeIn() togetherWith
+                                                            slideOutHorizontally { it } + fadeOut()
+                                                } else {
+                                                    slideInHorizontally { it } + fadeIn() togetherWith fadeOut()
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxSize(),
+                                            entryProvider = entryProvider {
+                                                entry<Screen.Home>(metadata = mapOf("screen" to Screen.Home)) {
+                                                    Surface(color = MaterialTheme.colorScheme.background) { Home() }
+                                                }
+                                                entry<Screen.CheckOut>(metadata = mapOf("screen" to Screen.CheckOut)) {
+                                                    Surface(color = MaterialTheme.colorScheme.background) { CheckOut() }
+                                                }
+                                                entry<Screen.Auth>(metadata = mapOf("screen" to Screen.Auth)) {
+                                                    Surface(color = MaterialTheme.colorScheme.background) { AuthScreen() }
+                                                }
+                                                entry<Screen.CheckOutConfirm>(metadata = mapOf("screen" to Screen.CheckOutConfirm)) {
+                                                    Surface(color = MaterialTheme.colorScheme.background) { CheckoutConfirm() }
+                                                }
+                                                entry<Screen.Account>(metadata = mapOf("screen" to Screen.Account)) {
+                                                    Surface(color = MaterialTheme.colorScheme.background) { Account() }
+                                                }
+                                                entry<Screen.FoodDetail>(metadata = { key -> mapOf("screen" to key) }) { key ->
+                                                    Surface(color = MaterialTheme.colorScheme.background) { FoodDetail(foodId = key.id) }
+                                                }
                                             }
-                                        }
+                                        )
                                     }
                                 }
                             }

@@ -39,6 +39,7 @@ android {
 }
 
 dependencies {
+    implementation("com.squareup.okhttp3:okhttp:5.4.0")
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
