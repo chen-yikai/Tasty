@@ -134,6 +134,9 @@ class MainActivity : ComponentActivity() {
 
                 LaunchedEffect(Unit) {
                     init = true
+                    if (!api.token.isNullOrBlank()) {
+                        api.fetchUserInfo()
+                    }
                 }
 
                 LaunchedEffect(navController.currentScreen) {
@@ -261,7 +264,11 @@ class MainActivity : ComponentActivity() {
                                                     Surface(color = MaterialTheme.colorScheme.background) { Account() }
                                                 }
                                                 entry<Screen.FoodDetail>(metadata = { key -> mapOf("screen" to key) }) { key ->
-                                                    Surface(color = MaterialTheme.colorScheme.background) { FoodDetail(foodId = key.id) }
+                                                    Surface(color = MaterialTheme.colorScheme.background) {
+                                                        FoodDetail(
+                                                            foodId = key.id
+                                                        )
+                                                    }
                                                 }
                                             }
                                         )

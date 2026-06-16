@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.ExpandMore
@@ -709,6 +710,20 @@ private fun AvatarPicker(
     val scope = rememberCoroutineScope()
     var uploadingAvatar by remember { mutableStateOf(false) }
     var uploadBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var aiPrompt by remember { mutableStateOf("") }
+    var generatingAvatar by remember { mutableStateOf(false) }
+    val busy = uploadingAvatar || generatingAvatar
+
+    fun generateAvatar() {
+        val prompt = aiPrompt.trim()
+        if (prompt.isBlank()) return
+        scope.launch {
+            generatingAvatar = true
+            val ok = api.generateAvatar(prompt)
+            generatingAvatar = false
+            if (ok) onDismissRequest()
+        }
+    }
 
     fun uploadAndSaveAvatar(bitmap: Bitmap) {
         uploadBitmap = bitmap
@@ -764,7 +779,7 @@ private fun AvatarPicker(
                     fallbackChar = avatarChar,
                     size = 110.dp
                 )
-                if (uploadingAvatar) {
+                if (busy) {
                     CircularProgressIndicator(color = Orange)
                 }
             }
@@ -781,7 +796,7 @@ private fun AvatarPicker(
                         )
                     },
                     modifier = Modifier.weight(1f),
-                    enabled = !uploadingAvatar,
+                    enabled = !busy,
                     colors = ButtonDefaults.buttonColors(containerColor = Orange),
                     shape = RoundedCornerShape(30f)
                 ) {
@@ -792,7 +807,7 @@ private fun AvatarPicker(
                 Button(
                     onClick = { cameraLauncher.launch(null) },
                     modifier = Modifier.weight(1f),
-                    enabled = !uploadingAvatar,
+                    enabled = !busy,
                     colors = ButtonDefaults.buttonColors(containerColor = Orange),
                     shape = RoundedCornerShape(30f)
                 ) {
@@ -800,6 +815,48 @@ private fun AvatarPicker(
                     Spacer(Modifier.width(8.dp))
                     Text("拍照")
                 }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    Icons.Rounded.AutoAwesome,
+                    contentDescription = null,
+                    tint = Orange,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text("用 AI 生成頭像", fontWeight = FontWeight.Medium)
+            }
+            OutlinedTextField(
+                value = aiPrompt,
+                onValueChange = { aiPrompt = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("描述你想要的頭像，例如：浩庭和貓貓一起吃拉麵") },
+                enabled = !busy,
+                minLines = 2,
+                shape = RoundedCornerShape(20.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(
+                        alpha = 0.6f
+                    ),
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                    focusedBorderColor = Orange
+                )
+            )
+            Button(
+                onClick = { generateAvatar() },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !busy && aiPrompt.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = Orange),
+                shape = RoundedCornerShape(30f)
+            ) {
+                Icon(Icons.Rounded.AutoAwesome, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (generatingAvatar) "生成中…" else "生成頭像")
             }
         }
     }

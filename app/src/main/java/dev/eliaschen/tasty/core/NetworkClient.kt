@@ -311,6 +311,44 @@ class NetworkClient @Inject constructor(
         return true
     }
 
+    suspend fun fetchUserInfo(): Boolean {
+        val authToken = token ?: return false
+        val res = runCatching {
+            ktor.get("/api/user/info") {
+                header("Authorization", "Bearer $authToken")
+            }
+        }.getOrNull() ?: return false
+
+        if (!res.status.isSuccess()) return false
+        val body = runCatching { res.body<JsonObject>() }.getOrNull() ?: return false
+
+        username = body["username"]?.jsonPrimitive?.contentOrNull ?: username
+        email = body["email"]?.jsonPrimitive?.contentOrNull ?: email
+        address = body["address"]?.jsonPrimitive?.contentOrNull ?: address
+        avatar = body["avatar"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+        writeAuthData()
+        return true
+    }
+
+    suspend fun generateAvatar(prompt: String): Boolean {
+        val authToken = token ?: return false
+        val res = runCatching {
+            ktor.post("/api/user/avatar/generate") {
+                header("Authorization", "Bearer $authToken")
+                setBody(mapOf("prompt" to prompt))
+            }
+        }.getOrNull() ?: return false
+
+        if (!res.status.isSuccess()) return false
+        val filename = runCatching {
+            res.body<JsonObject>()["avatar"]?.jsonPrimitive?.contentOrNull
+        }.getOrNull() ?: return false
+
+        avatar = filename
+        sharedPreferences.edit { putString("avatar", filename) }
+        return true
+    }
+
     suspend fun chatWithAgent(messages: List<AgentMessage>): List<AgentMessage>? {
         val res = try {
             ktor.post("/api/agent/chat") {
